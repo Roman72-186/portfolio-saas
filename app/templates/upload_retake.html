@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}Сдать отработку{% endblock %}
+{% block extra_styles %}
+<style>
+.upload-wrap { max-width: 480px; margin: 0 auto; }
+.upload-drop {
+    border: 2px dashed var(--border); border-radius: 20px; padding: 44px 32px;
+    text-align: center; cursor: pointer; background: var(--card);
+    transition: border-color 0.2s, background 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.upload-drop:hover, .upload-drop.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+.upload-drop input[type="file"] { display: none; }
+.upload-circle {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: #EDE9FE; border: 2px dashed #7C3AED;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; color: #7C3AED; line-height: 1;
+    transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+.upload-drop:hover .upload-circle { background: #7C3AED; color: #fff; transform: scale(1.07); }
+.upload-drop-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.upload-drop-hint  { font-size: 12px; color: var(--dim); line-height: 1.5; }
+.preview-area { display: none; }
+.preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.preview-count { font-size: 14px; font-weight: 700; color: #7C3AED; }
+.btn-reselect { font-size: 12px; font-weight: 500; color: var(--dim); background: none; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; cursor: pointer; font-family: 'Montserrat', sans-serif; transition: all 0.2s; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.preview-cell { position: relative; }
+.preview-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2; line-height: 1;
+}
+.preview-remove:hover { background: rgba(220,38,38,0.85); }
+.btn-add-more {
+    font-size: 12px; font-weight: 500; color: var(--dim);
+    background: none; border: 1px dashed var(--border);
+    border-radius: 20px; padding: 4px 12px; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, color 0.2s;
+}
+.btn-add-more:hover { border-color: #7C3AED; color: #7C3AED; }
+.score-input {
+    width: 100%; padding: 14px 16px; font-size: 20px; font-weight: 700;
+    border: 2px solid var(--border); border-radius: 14px;
+    background: var(--card); color: var(--text);
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s;
+    text-align: center;
+}
+.score-input:focus { outline: none; border-color: #7C3AED; }
+@media (max-width: 480px) {
+    .upload-drop { padding: 28px 20px; }
+    .upload-circle { width: 76px; height: 76px; font-size: 34px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="upload-wrap">
+
+    <div style="margin-bottom:24px">
+        <h1 style="font-size:26px;font-weight:900;letter-spacing:-0.5px" class="text-gradient">
+            Сдать отработку
+        </h1>
+        <p style="color:var(--muted);font-size:14px;margin-top:6px;line-height:1.5">
+            Загрузи фото отработки и укажи балл, который получил на пробнике.
+        </p>
+    </div>
+
+    {% if not feature_available %}
+    <div style="background:rgba(239,68,68,0.06);border:1.5px solid rgba(239,68,68,0.2);
+                border-radius:14px;padding:20px 22px;margin-bottom:20px;text-align:center">
+        <div style="font-size:28px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#DC2626;margin-bottom:6px">Отработки закрыты</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">{{ feature_message }}</div>
+    </div>
+    {% else %}
+
+    {% if success %}
+    <div class="alert alert-success" style="margin-bottom:20px">
+        Загружено {{ success_count }} фото! Куратор проверит отработку.
+        <a href="/cabinet" style="margin-left:8px;font-weight:700">В кабинет →</a>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error" style="margin-bottom:20px">{{ error }}</div>
+    {% endif %}
+
+    <form action="/upload/retake" method="post" enctype="multipart/form-data"
+          style="display:flex;flex-direction:column;gap:20px" id="retakeForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+        <div class="card" style="padding:16px 20px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">📅</span>
+            <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--dim)">Дата сдачи</div>
+                <div style="font-size:15px;font-weight:700;color:var(--text)">{{ current_date }}</div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:20px">
+            <label class="form-label" style="margin-bottom:10px;display:block">
+                Балл за пробник
+                <span style="color:var(--dim);font-weight:500;font-size:12px"> — тот, что ты получил</span>
+            </label>
+            <input
+                type="number"
+                name="student_score"
+                id="scoreInput"
+                class="score-input"
+                min="0" max="100" step="1"
+                placeholder="Введи балл (0 – 100)"
+                value="{{ student_score_input }}"
+                required>
+            <div style="font-size:11px;color:var(--dim);margin-top:6px;text-align:center">
+                Введи балл от 0 до 100
+            </div>
+        </div>
+
+        <div>
+            <label class="form-label" style="margin-bottom:10px">
+                Фото отработки <span style="color:var(--dim);font-weight:500">до {{ max_files }} штук</span>
+            </label>
+            <label class="upload-drop" id="dropZone">
+                <input type="file" name="photos" accept="image/*" required multiple id="photoInput">
+                <div class="upload-circle">📝</div>
+                <div class="upload-drop-title">Нажми или перенеси фото</div>
+                <div class="upload-drop-hint">JPG, PNG, WebP · до 10 МБ · до {{ max_files }} штук</div>
+            </label>
+            <div class="preview-area" id="previewArea">
+                <div class="preview-header">
+                    <span class="preview-count" id="fileCount"></span>
+                    <div style="display:flex;gap:8px">
+                        <button type="button" class="btn-add-more" id="addMoreBtn">+ Добавить</button>
+                        <button type="button" class="btn-reselect" id="reselectBtn">✕ Сбросить</button>
+                    </div>
+                </div>
+                <div class="photo-grid" id="previewGrid"></div>
+            </div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn-primary" disabled
+                style="background:linear-gradient(135deg,#7C3AED,#A78BFA)">
+            Отправить на проверку
+        </button>
+    </form>
+
+    {% endif %}{# end feature gate #}
+</div>
+
+{% set active_tab = "retake" %}
+{% include "partials/bottom_nav.html" %}
+
+<script>
+const MAX_FILES = {{ max_files }}, MAX_SIZE = 10*1024*1024;
+const input = document.getElementById('photoInput'), dropZone = document.getElementById('dropZone');
+const previewArea = document.getElementById('previewArea'), grid = document.getElementById('previewGrid');
+const counter = document.getElementById('fileCount'), submitBtn = document.getElementById('submitBtn');
+const reselectBtn = document.getElementById('reselectBtn');
+const addMoreBtn = document.getElementById('addMoreBtn');
+const scoreInput = document.getElementById('scoreInput');
+
+var selectedFiles = [];
+
+function syncInputFiles() {
+    var dt = new DataTransfer();
+    selectedFiles.forEach(function(f) { dt.items.add(f); });
+    input.files = dt.files;
+}
+
+function updateSubmit() {
+    submitBtn.disabled = !(selectedFiles.length > 0 && scoreInput.value !== '' && scoreInput.checkValidity());
+}
+
+function removeFile(idx) {
+    selectedFiles.splice(idx, 1);
+    syncInputFiles();
+    renderPreviews();
+    if (!selectedFiles.length) {
+        previewArea.style.display = 'none';
+        dropZone.style.display = 'flex';
+    }
+    updateSubmit();
+}
+
+function renderPreviews() {
+    grid.innerHTML = '';
+    counter.textContent = 'Выбрано: ' + selectedFiles.length + ' из ' + MAX_FILES;
+    selectedFiles.forEach(function(f, i) {
+        var wrap = document.createElement('div');
+        wrap.className = 'preview-cell';
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'preview-remove'; btn.textContent = '\u2715';
+        btn.onclick = function() { removeFile(i); };
+        wrap.appendChild(btn);
+        var reader = new FileReader();
+        reader.onload = function(e) { var img = document.createElement('img'); img.src = e.target.result; wrap.appendChild(img); };
+        reader.readAsDataURL(f);
+        grid.appendChild(wrap);
+    });
+}
+
+function addFiles(newFiles) {
+    var files = Array.from(newFiles);
+    for (var j = 0; j < files.length; j++) {
+        if (files[j].size > MAX_SIZE) { alert(files[j].name + ' — слишком большой'); continue; }
+        if (selectedFiles.length >= MAX_FILES) { alert('Максимум ' + MAX_FILES + ' фото'); break; }
+        selectedFiles.push(files[j]);
+    }
+    syncInputFiles();
+    renderPreviews();
+    if (selectedFiles.length) {
+        dropZone.style.display = 'none';
+        previewArea.style.display = 'block';
+    }
+    updateSubmit();
+}
+
+input.addEventListener('change', function() { addFiles(input.files); });
+scoreInput.addEventListener('input', updateSubmit);
+
+reselectBtn.addEventListener('click', function() {
+    selectedFiles = []; input.value = ''; grid.innerHTML = '';
+    previewArea.style.display = 'none'; dropZone.style.display = 'flex';
+    updateSubmit();
+});
+addMoreBtn.addEventListener('click', function() {
+    var tmp = document.createElement('input'); tmp.type = 'file'; tmp.accept = 'image/*'; tmp.multiple = true;
+    tmp.onchange = function() { addFiles(tmp.files); }; tmp.click();
+});
+dropZone.addEventListener('dragover', function(e){e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave', function(){dropZone.classList.remove('drag-over');});
+dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if(e.dataTransfer&&e.dataTransfer.files.length) { addFiles(e.dataTransfer.files); }
+});
+document.getElementById('retakeForm').addEventListener('submit', function(){
+    syncInputFiles(); submitBtn.disabled=true; submitBtn.innerHTML='<span class="spinner"></span>Загружаем…';
+});
+updateSubmit();
+</script>
+{% endblock %}

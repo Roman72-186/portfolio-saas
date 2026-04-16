@@ -1,0 +1,116 @@
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
+
+from sqlalchemy.orm import Session as DBSession
+
+from app.config import settings
+from app.models.login_token import LoginToken
+from app.models.user import User
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def issue_one_time_login_link(
+    db: DBSession,
+    *,
+    user: User,
+    base_url: str,
+    issued_by: str = "system",
+) -> tuple[str, LoginToken]:
+    now = _now()
+    db.query(LoginToken).filter(
+        LoginToken.user_id == user.id,
+        LoginToken.used_at.is_(None),
+        LoginToken.revoked_at.is_(None),
+        LoginToken.expires_at > now,
+    ).update(
+        {LoginToken.revoked_at: now},
+        synchronize_session=False,
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    login_token = LoginToken(
+        user_id=user.id,
+        token_hash=_hash_token(raw_token),
+        issued_by=issued_by,
+        expires_at=now + timedelta(minutes=settings.one_time_link_ttl_minutes),
+    )
+    db.add(login_token)
+    db.commit()
+    db.refresh(login_token)
+
+    login_url = f"{base_url.rstrip('/')}/auth/link?token={quote(raw_token)}"
+    return login_url, login_token
+
+
+def issue_sso_token(
+    db: DBSession,
+    *,
+    user: User,
+    ttl_minutes: int,
+) -> tuple[str, LoginToken]:
+    """Issue a short-lived cross-service SSO token (no login URL built).
+
+    Returns (raw_token, LoginToken). The caller builds the redirect URL.
+    Revokes all previous active tokens for this user, same as issue_one_time_login_link.
+    """
+    now = _now()
+    db.query(LoginToken).filter(
+        LoginToken.user_id == user.id,
+        LoginToken.used_at.is_(None),
+        LoginToken.revoked_at.is_(None),
+        LoginToken.expires_at > now,
+    ).update(
+        {LoginToken.revoked_at: now},
+        synchronize_session=False,
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    login_token = LoginToken(
+        user_id=user.id,
+        token_hash=_hash_token(raw_token),
+        issued_by="3dlab-sso",
+        expires_at=now + timedelta(minutes=ttl_minutes),
+    )
+    db.add(login_token)
+    db.commit()
+    db.refresh(login_token)
+    return raw_token, login_token
+
+
+def consume_one_time_login_token(
+    db: DBSession,
+    *,
+    raw_token: str,
+) -> tuple[LoginToken | None, User | None, str | None]:
+    token_hash = _hash_token(raw_token)
+    record = (
+        db.query(LoginToken, User)
+        .join(User, LoginToken.user_id == User.id)
+        .filter(LoginToken.token_hash == token_hash)
+        .first()
+    )
+    if not record:
+        return None, None, "invalid"
+
+    login_token, user = record
+    now = _now()
+
+    if login_token.revoked_at is not None:
+        return login_token, user, "revoked"
+    if login_token.used_at is not None:
+        return login_token, user, "used"
+    if login_token.expires_at <= now:
+        return login_token, user, "expired"
+
+    login_token.used_at = now
+    db.commit()
+    return login_token, user, None

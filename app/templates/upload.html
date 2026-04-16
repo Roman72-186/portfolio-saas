@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Загрузка фото{% endblock %}
+{% block extra_styles %}
+<style>
+.upload-wrap { max-width: 480px; margin: 0 auto; }
+
+.mode-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.4px;
+    margin-bottom: 8px;
+}
+.mode-before { background: rgba(220,38,38,0.09); color: #DC2626; border: 1px solid rgba(220,38,38,0.2); }
+.mode-after  { background: rgba(5,150,105,0.09); color: #059669; border: 1px solid rgba(5,150,105,0.2); }
+
+.upload-drop {
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 44px 32px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--card);
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+.upload-drop:hover, .upload-drop.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.upload-drop input[type="file"] { display: none; }
+
+.upload-circle {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 2px dashed var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; color: var(--accent); line-height: 1;
+    transition: background 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+}
+.upload-drop:hover .upload-circle, .upload-drop.drag-over .upload-circle {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+    transform: scale(1.07); box-shadow: 0 8px 24px rgba(37,99,235,0.28);
+}
+.upload-drop-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.upload-drop-hint  { font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+.preview-area { display: none; }
+.preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.preview-count { font-size: 14px; font-weight: 700; color: var(--accent); }
+.btn-reselect {
+    font-size: 12px; font-weight: 500; color: var(--dim);
+    background: none; border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, color 0.2s;
+}
+.btn-reselect:hover { border-color: var(--accent); color: var(--accent); }
+
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.preview-cell { position: relative; }
+.preview-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2; line-height: 1;
+}
+.preview-remove:hover { background: rgba(220,38,38,0.85); }
+.btn-add-more {
+    font-size: 12px; font-weight: 500; color: var(--dim);
+    background: none; border: 1px dashed var(--border);
+    border-radius: 20px; padding: 4px 12px; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, color 0.2s;
+}
+.btn-add-more:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-finish-before {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 24px; border-radius: 12px;
+    background: rgba(220,38,38,0.07); border: 1.5px solid rgba(220,38,38,0.25);
+    color: #DC2626; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: 'Montserrat', sans-serif;
+    transition: background 0.2s, transform 0.15s;
+    text-decoration: none;
+}
+.btn-finish-before:hover { background: rgba(220,38,38,0.13); transform: translateY(-1px); color: #DC2626; }
+@media (max-width: 480px) {
+    .upload-drop { padding: 28px 20px; }
+    .upload-circle { width: 76px; height: 76px; font-size: 34px; }
+}
+@media (min-width: 1024px) {
+    .upload-wrap { max-width: 900px; }
+    .upload-layout {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 32px;
+        align-items: start;
+    }
+    .upload-sidebar-panel {
+        position: sticky;
+        top: 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="upload-wrap">
+
+    <div style="margin-bottom:24px">
+        <a href="/cabinet" style="font-size:13px;color:var(--dim);text-decoration:none;display:inline-block;margin-bottom:8px">← Кабинет</a>
+        {% if mode == "before" %}
+        <div class="mode-badge mode-before">● Раздел ДО</div>
+        {% else %}
+        <div class="mode-badge mode-after">● Раздел ПОСЛЕ</div>
+        {% endif %}
+        <h1 style="font-size:26px;font-weight:900;letter-spacing:-0.5px" class="text-gradient">
+            {% if mode == "before" %}Загрузка фото «До»{% else %}Загрузка фото «После»{% endif %}
+        </h1>
+        {% if mode == "before" %}
+        <p style="color:var(--muted);font-size:14px;margin-top:6px;line-height:1.5">
+            Загрузите фото до начала обучения. Когда будете готовы — нажмите «Завершить раздел До».
+        </p>
+        {% endif %}
+    </div>
+
+    {% if not feature_available and mode == "after" %}
+    <div style="background:rgba(239,68,68,0.06);border:1.5px solid rgba(239,68,68,0.2);
+                border-radius:14px;padding:20px 22px;margin-bottom:20px;text-align:center">
+        <div style="font-size:28px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#DC2626;margin-bottom:6px">Загрузка закрыта</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">{{ feature_message }}</div>
+    </div>
+    {% else %}
+
+    {% if success %}
+    <div class="alert alert-success" role="status" aria-live="polite" style="margin-bottom:20px">
+        Загружено {{ success_count }} фото!
+        {% if fail_count %}<br><span style="color:#fbbf24">Не удалось: {{ fail_count }}</span>{% endif %}
+        <a href="/upload" style="margin-left:8px;font-weight:700">Загрузить ещё →</a>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error" role="alert" aria-live="assertive" style="margin-bottom:20px">{{ error }}</div>
+    {% endif %}
+
+    <div class="upload-layout">
+        <!-- ── Основная форма ── -->
+        <div>
+            <form action="/upload" method="post" enctype="multipart/form-data"
+                  style="display:flex;flex-direction:column;gap:20px">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+                <!-- Месяц -->
+                <div class="card" style="padding:20px">
+                    <label class="form-label" style="margin-bottom:10px">Выбери месяц</label>
+                    <select name="month" required class="form-select">
+                        <option value="">— выберите месяц —</option>
+                        {% for m in months %}
+                        <option value="{{ m }}">{{ m | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Drop zone -->
+                <div>
+                    <label class="form-label" style="margin-bottom:10px">Фото</label>
+                    <label class="upload-drop" id="dropZone">
+                        <input type="file" name="photos"
+                               accept="image/*"
+                               required multiple id="photoInput">
+                        <div class="upload-circle">+</div>
+                        <div class="upload-drop-title">Нажми или перенеси фото</div>
+                        <div class="upload-drop-hint">JPG, PNG, WebP · до 10 МБ · до {{ max_files }} штук</div>
+                    </label>
+                    <div class="preview-area" id="previewArea">
+                        <div class="preview-header">
+                            <span class="preview-count" id="fileCount"></span>
+                            <div style="display:flex;gap:8px">
+                                <button type="button" class="btn-add-more" id="addMoreBtn">+ Добавить</button>
+                                <button type="button" class="btn-reselect" id="reselectBtn">✕ Сбросить</button>
+                            </div>
+                        </div>
+                        <div class="photo-grid" id="previewGrid"></div>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn-primary" disabled
+                        style="background:linear-gradient(135deg,#3B4FC8,#2563EB)">
+                    Загрузить
+                </button>
+            </form>
+
+            {% if mode == "before" %}
+            <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border)">
+                <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+                    Загрузили все фото «До»? Нажмите кнопку ниже — раздел закроется навсегда
+                    и откроется раздел «После».
+                </p>
+                <form action="/upload/finish-before" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                    <button type="submit" class="btn-finish-before">
+                        ✓ Завершить раздел «До»
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ── Правая панель (видна только на десктопе) ── -->
+        <div class="upload-sidebar-panel">
+            <div class="card" style="padding:20px">
+                <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px">Как загружать</div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <div style="display:flex;gap:12px;align-items:flex-start">
+                        <span style="font-size:18px;flex-shrink:0">📁</span>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5">Перетащите фото в область загрузки или нажмите на неё</div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start">
+                        <span style="font-size:18px;flex-shrink:0">📐</span>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5">JPG, PNG или WebP · до 10 МБ каждый · до {{ max_files }} штук за раз</div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start">
+                        <span style="font-size:18px;flex-shrink:0">📅</span>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5">Выберите месяц, к которому относятся работы</div>
+                    </div>
+                </div>
+            </div>
+            {% if mode == "before" %}
+            <div class="card" style="padding:20px;background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.15)">
+                <div style="font-size:13px;font-weight:700;color:#DC2626;margin-bottom:8px">Раздел «До»</div>
+                <div style="font-size:13px;color:var(--muted);line-height:1.5">Сюда загружаются работы до начала обучения. После завершения раздел закроется навсегда.</div>
+            </div>
+            {% else %}
+            <div class="card" style="padding:20px;background:rgba(5,150,105,0.04);border-color:rgba(5,150,105,0.15)">
+                <div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:8px">Раздел «После»</div>
+                <div style="font-size:13px;color:var(--muted);line-height:1.5">Здесь загружаются работы, которые вы создали во время обучения.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% endif %}{# end feature gate #}
+
+</div>
+
+{% set active_tab = "portfolio" %}
+{% include "partials/bottom_nav.html" %}
+
+<script>
+const MAX_FILES  = {{ max_files }};
+const MAX_SIZE   = 10 * 1024 * 1024;
+const input      = document.getElementById('photoInput');
+const dropZone   = document.getElementById('dropZone');
+const previewArea= document.getElementById('previewArea');
+const grid       = document.getElementById('previewGrid');
+const counter    = document.getElementById('fileCount');
+const submitBtn  = document.getElementById('submitBtn');
+const reselectBtn= document.getElementById('reselectBtn');
+const addMoreBtn = document.getElementById('addMoreBtn');
+
+let selectedFiles = [];
+
+function syncInputFiles() {
+    const dt = new DataTransfer();
+    selectedFiles.forEach(function(f) { dt.items.add(f); });
+    input.files = dt.files;
+}
+
+function removeFile(idx) {
+    selectedFiles.splice(idx, 1);
+    syncInputFiles();
+    renderPreviews();
+    if (!selectedFiles.length) {
+        previewArea.style.display = 'none';
+        dropZone.style.display = 'flex';
+        submitBtn.disabled = true;
+    }
+}
+
+function renderPreviews() {
+    grid.innerHTML = '';
+    counter.textContent = 'Выбрано: ' + selectedFiles.length + ' из ' + MAX_FILES;
+    selectedFiles.forEach(function(f, i) {
+        var wrap = document.createElement('div');
+        wrap.className = 'preview-cell';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preview-remove';
+        btn.textContent = '\u2715';
+        btn.onclick = function() { removeFile(i); };
+        wrap.appendChild(btn);
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            wrap.appendChild(img);
+        };
+        reader.readAsDataURL(f);
+        grid.appendChild(wrap);
+    });
+}
+
+function addFiles(newFiles) {
+    var files = Array.from(newFiles);
+    for (var j = 0; j < files.length; j++) {
+        var f = files[j];
+        if (f.size > MAX_SIZE) { alert(f.name + ' — слишком большой (макс. 10 МБ)'); continue; }
+        if (selectedFiles.length >= MAX_FILES) { alert('Максимум ' + MAX_FILES + ' фото'); break; }
+        selectedFiles.push(f);
+    }
+    syncInputFiles();
+    renderPreviews();
+    if (selectedFiles.length) {
+        dropZone.style.display = 'none';
+        previewArea.style.display = 'block';
+        submitBtn.disabled = false;
+    }
+}
+
+input.addEventListener('change', function() { addFiles(input.files); });
+
+reselectBtn.addEventListener('click', function() {
+    selectedFiles = [];
+    input.value = '';
+    grid.innerHTML = '';
+    previewArea.style.display = 'none';
+    dropZone.style.display = 'flex';
+    submitBtn.disabled = true;
+});
+
+addMoreBtn.addEventListener('click', function() {
+    var tmp = document.createElement('input');
+    tmp.type = 'file'; tmp.accept = 'image/*'; tmp.multiple = true;
+    tmp.onchange = function() { addFiles(tmp.files); };
+    tmp.click();
+});
+
+dropZone.addEventListener('dragover',  function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', function()  { dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer && e.dataTransfer.files.length) { addFiles(e.dataTransfer.files); }
+});
+
+document.querySelector('form').addEventListener('submit', function() {
+    syncInputFiles();
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span>Загружаем ' + selectedFiles.length + ' фото…';
+});
+</script>
+{% endblock %}

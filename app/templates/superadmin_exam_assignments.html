@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Задания для пробников{% endblock %}
+{% block extra_styles %}
+<style>
+.ea-wrap { max-width: 860px; margin: 0 auto; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; }
+.page-back { font-size: 13px; color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 6px; opacity: 1; }
+.page-back:hover { color: var(--accent); opacity: 1; }
+.page-title { font-size: 24px; font-weight: 900; color: var(--text); }
+.btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; transition: opacity 0.15s; font-family: 'Montserrat', sans-serif; }
+.btn-primary:hover { opacity: 0.85; color: #fff; }
+
+.assignments-list { display: flex; flex-direction: column; gap: 12px; }
+.assignment-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 16px; padding: 18px 20px; display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit; transition: border-color 0.2s, box-shadow 0.2s; box-shadow: var(--shadow); }
+.assignment-card:hover { border-color: var(--border-hover); box-shadow: var(--shadow-lg); }
+.ac-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.ac-info { flex: 1; min-width: 0; }
+.ac-title { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-meta { font-size: 12px; color: var(--dim); margin-top: 3px; }
+.ac-right { flex-shrink: 0; text-align: right; }
+.status-badge { display: inline-flex; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.status-published { background: rgba(5,150,105,0.08); color: #059669; }
+.status-draft { background: rgba(107,114,128,0.08); color: #6B7280; }
+.status-archived { background: rgba(156,163,175,0.06); color: #9CA3AF; }
+
+.empty-state { text-align: center; padding: 64px 20px; color: var(--dim); }
+.empty-icon { font-size: 48px; margin-bottom: 14px; }
+.empty-text { font-size: 15px; margin-bottom: 20px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ea-wrap">
+    <div class="page-header">
+        <div>
+            <a href="/cabinet" class="page-back">← Кабинет</a>
+            <div class="page-title">Задания для пробников</div>
+        </div>
+        <a href="/cabinet/exam-assignments/create" class="btn-primary">+ Создать билет</a>
+    </div>
+
+    {% set status_labels = {'published': 'Опубликовано', 'draft': 'Черновик', 'archived': 'Архив'} %}
+    {% set subject_icons = {'Рисунок': '🖌️', 'Композиция': '📐'} %}
+
+    {% if assignments %}
+    <div class="assignments-list">
+        {% for a in assignments %}
+        <a href="/cabinet/exam-assignments/{{ a.id }}" class="assignment-card">
+            <div class="ac-icon">{{ subject_icons.get(a.subject, '📋') }}</div>
+            <div class="ac-info">
+                <div class="ac-title">{{ a.title }}</div>
+                <div class="ac-meta">
+                    {{ a.subject }} · {{ ticket_counts.get(a.id, 0) }} билет{{ 'ов' if ticket_counts.get(a.id, 0) > 4 else ('а' if ticket_counts.get(a.id, 0) > 1 else '') }}
+                    · создано {{ a.created_at.strftime('%d.%m.%Y') if a.created_at else '—' }}
+                </div>
+            </div>
+            <div class="ac-right">
+                <span class="status-badge status-{{ a.status }}">{{ status_labels.get(a.status, a.status) }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">Заданий пока нет. Нажмите «+ Создать билет» выше.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

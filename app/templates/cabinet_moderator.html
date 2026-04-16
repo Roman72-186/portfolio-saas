@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Кабинет модератора{% endblock %}
+{% block content %}
+<div>
+    <div style="margin-bottom:32px">
+        <h1 style="font-size:28px;font-weight:700;margin-bottom:6px" class="text-gradient">
+            Кабинет модератора — {{ user.name }}
+        </h1>
+        <p style="color:var(--muted);font-size:15px">
+            <span style="color:var(--accent);font-weight:700">Модератор</span>
+        </p>
+    </div>
+
+    <div class="grid-2">
+        <a href="/admin/users" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">👥</div>
+            <div class="card-title">Все ученики</div>
+            <div class="card-desc">Полный список пользователей</div>
+        </a>
+
+        <a href="/cabinet/curators" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">🎓</div>
+            <div class="card-title">Кураторы</div>
+            <div class="card-desc">Управление кураторами</div>
+        </a>
+
+        <a href="/cabinet/stats" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">📊</div>
+            <div class="card-title">Статистика загрузок</div>
+            <div class="card-desc">Активность по всем ученикам</div>
+        </a>
+
+        <a href="/cabinet/students/photos" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">🖼</div>
+            <div class="card-title">Портфолио учеников</div>
+            <div class="card-desc">Просмотр всех работ</div>
+        </a>
+
+        <a href="/cabinet/issue-link" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">🔗</div>
+            <div class="card-title">Выдать доступ</div>
+            <div class="card-desc">Одноразовая ссылка для входа</div>
+        </a>
+
+        <a href="/cabinet/history" class="card" style="text-decoration:none;color:inherit;display:block">
+            <div class="card-icon">📋</div>
+            <div class="card-title">История загрузок</div>
+            <div class="card-desc">Все мои загрузки по месяцам</div>
+        </a>
+    </div>
+</div>
+{% endblock %}

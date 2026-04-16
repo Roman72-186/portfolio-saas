@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет{% endblock %}
+{% block extra_styles %}
+<style>
+
+/* ── Hero-шапка профиля ── */
+.profile-hero {
+    background: linear-gradient(135deg, #1E2D6B 0%, #3B4FC8 100%);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    box-shadow: 0 8px 32px rgba(30,45,107,0.22);
+    position: relative;
+    overflow: hidden;
+}
+.profile-hero::before {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    top: -80px; right: -60px;
+}
+.profile-hero::after {
+    content: '';
+    position: absolute;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    bottom: -60px; right: 100px;
+}
+.profile-avatar {
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255,255,255,0.25);
+    flex-shrink: 0;
+    position: relative; z-index: 1;
+}
+.profile-avatar-placeholder {
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    border: 3px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; flex-shrink: 0;
+    position: relative; z-index: 1;
+}
+.profile-hero-info { flex: 1; position: relative; z-index: 1; }
+.profile-role-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 10px;
+}
+.profile-name {
+    font-size: 26px; font-weight: 900;
+    color: #fff;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+    line-height: 1.1;
+}
+.profile-tariff {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 13px; font-weight: 700; color: #fff;
+}
+.profile-tariff-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%; background: #6EE7B7;
+}
+.profile-hero-edit {
+    position: relative; z-index: 1;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border-radius: 20px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.9);
+    font-size: 13px; font-weight: 500;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+    opacity: 1;
+}
+.profile-hero-edit:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.35);
+    opacity: 1;
+}
+
+/* ── Info grid (метрики) ── */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.info-cell {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+.info-cell:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.info-cell-icon {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; margin-bottom: 10px;
+}
+.info-cell-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--dim); margin-bottom: 4px;
+}
+.info-cell-value {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    word-break: break-all; line-height: 1.3;
+}
+.info-cell-value a { color: var(--accent); opacity: 1; }
+.info-cell-value a:hover { opacity: 0.7; }
+.info-cell-value .not-set { color: var(--dim); font-weight: 500; font-style: italic; }
+
+/* ── Tariff история ── */
+.tariffs-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.tariffs-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--dim);
+    flex-shrink: 0;
+}
+.tariff-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.tariff-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 13px; font-weight: 700; border: 1.5px solid;
+    transition: transform 0.15s;
+}
+.tariff-badge:hover { transform: scale(1.03); }
+.tariff-current {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(37,99,235,0.3);
+}
+.tariff-past {
+    background: var(--bg); color: var(--muted);
+    border-color: var(--border);
+}
+.tariff-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+
+/* stats strip */
+.stats-strip {
+    display: flex;
+    gap: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+.stat-item {
+    flex: 1;
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.stat-item:last-child { border-right: none; }
+.stat-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+}
+.stat-value { font-size: 18px; font-weight: 900; color: var(--text); line-height: 1.1; }
+.stat-label { font-size: 11px; color: var(--dim); font-weight: 500; }
+
+@media (max-width: 768px) {
+    .info-grid { grid-template-columns: 1fr 1fr; }
+    .stats-strip { flex-direction: column; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .stat-item:last-child { border-bottom: none; }
+    .profile-hero { flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+    .info-grid { grid-template-columns: 1fr; }
+    .profile-hero {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 24px 20px;
+    }
+    .profile-name { font-size: 22px; }
+    .profile-hero-edit { width: 100%; justify-content: center; }
+    .stat-item { padding: 12px 16px; }
+    .stat-value { font-size: 16px; }
+    .tariffs-card { padding: 14px 16px; }
+}
+/* ── Desktop expansions ── */
+@media (min-width: 1024px) {
+    .info-grid { grid-template-columns: repeat(4, 1fr); }
+    .profile-hero { padding: 36px 40px; }
+    .profile-name { font-size: 30px; }
+    .notif-stack { display: grid; grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Уведомления ── */
+.notif-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; gap: 10px; flex-wrap: wrap;
+}
+.notif-header-left {
+    display: flex; align-items: center; gap: 10px;
+}
+.notif-badge {
+    background: #DC2626; color: #fff; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+}
+.notif-mark-btn {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--muted);
+    cursor: pointer; font-family: inherit; transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.notif-mark-btn:hover { border-color: var(--accent); color: var(--accent); }
+.notif-stack { display: flex; flex-direction: column; gap: 12px; }
+.notif-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 18px; border-radius: 14px;
+    border: 1px solid var(--border); background: var(--card);
+    transition: background 0.2s;
+}
+.notif-item.unread {
+    background: rgba(37,99,235,0.06);
+    border-color: rgba(37,99,235,0.2);
+}
+.notif-item-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.notif-item-body { flex: 1; min-width: 0; }
+.notif-item-title {
+    font-size: 14px; font-weight: 500; color: var(--text);
+    line-height: 1.45; margin-bottom: 0;
+}
+.notif-item.unread .notif-item-title { font-weight: 700; }
+.notif-item-text {
+    font-size: 13px; color: var(--muted); line-height: 1.6;
+    white-space: pre-wrap; margin-top: 8px;
+}
+.notif-item-meta {
+    font-size: 11px; color: var(--dim); margin-top: 8px;
+}
+@media (max-width: 480px) {
+    .notif-item { padding: 14px 14px; gap: 10px; }
+    .notif-item-title { font-size: 13px; }
+    .notif-item-text { font-size: 12px; margin-top: 6px; }
+}
+
+/* ── Активный пробник ── */
+.mock-widget {
+    background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+    border: 1.5px solid rgba(217,119,6,0.35);
+    border-radius: 16px; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    margin-bottom: 20px;
+}
+.mock-widget-header {
+    display: flex; align-items: center; gap: 10px;
+}
+.mock-widget-title {
+    font-size: 15px; font-weight: 700; color: #92400E;
+}
+.mock-attempt-row {
+    background: rgba(255,255,255,0.7); border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.mock-attempt-subject {
+    font-size: 14px; font-weight: 700; color: #78350F;
+}
+.mock-attempt-ticket {
+    font-size: 11px; color: #92400E; opacity: 0.8; margin-top: 2px;
+}
+.mock-attempt-info { min-width: 0; flex: 1; }
+.mock-attempt-timer-wrap { text-align: right; flex-shrink: 0; }
+.mock-remaining {
+    font-size: 20px; font-weight: 900; color: #B45309;
+    line-height: 1; font-variant-numeric: tabular-nums;
+}
+.mock-remaining-label {
+    font-size: 10px; font-weight: 700; color: #92400E; opacity: 0.75;
+    margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.mock-continue-btn {
+    flex-shrink: 0; padding: 9px 16px; background: #D97706; color: #fff;
+    border-radius: 10px; font-size: 13px; font-weight: 700; text-decoration: none;
+    transition: opacity 0.15s;
+}
+.mock-continue-btn:hover { opacity: 0.85; }
+@media (max-width: 400px) {
+    .mock-continue-btn { padding: 8px 12px; font-size: 12px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div>
+
+    <!-- ── АКТИВНЫЙ ПРОБНИК ── -->
+    {% if active_attempts %}
+    <div id="active-mock-widget" class="mock-widget">
+        <div class="mock-widget-header">
+            <span style="font-size:22px">⏱</span>
+            <span class="mock-widget-title">Идёт пробник</span>
+        </div>
+        {% for a in active_attempts %}
+        <div class="mock-attempt-row" data-started="{{ a.started_at }}">
+            <div class="mock-attempt-info">
+                <div class="mock-attempt-subject">{{ a.subject }}</div>
+                <div class="mock-attempt-ticket">{{ a.ticket_title }}</div>
+            </div>
+            <div class="mock-attempt-timer-wrap">
+                <div class="mock-remaining">—</div>
+                <div class="mock-remaining-label">осталось</div>
+            </div>
+            <a href="/upload/mock-exam" class="mock-continue-btn">Продолжить →</a>
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+    (function(){
+        var DUR = {{ mock_exam_duration_sec }};
+        function fmt(sec) {
+            if (sec <= 0) return 'Время вышло';
+            var h = Math.floor(sec / 3600);
+            var m = Math.floor((sec % 3600) / 60);
+            var s = sec % 60;
+            return h + ':' + (m<10?'0':'') + m + ':' + (s<10?'0':'') + s;
+        }
+        function update() {
+            document.querySelectorAll('.mock-attempt-row').forEach(function(row){
+                var started = Date.parse(row.getAttribute('data-started'));
+                var elapsed = Math.floor((Date.now() - started) / 1000);
+                var remaining = DUR - elapsed;
+                var el = row.querySelector('.mock-remaining');
+                if (remaining <= 0) {
+                    el.textContent = 'Время вышло';
+                    el.style.fontSize = '14px';
+                } else {
+                    el.textContent = fmt(remaining);
+                }
+            });
+        }
+        update();
+        setInterval(update, 1000);
+    })();
+    </script>
+    {% endif %}
+
+    <!-- ── УВЕДОМЛЕНИЯ (только непрочитанные) ── -->
+    {% if unread_count > 0 %}
+    <div id="notifications" style="margin-bottom:20px">
+        <div class="notif-header">
+            <div class="notif-header-left">
+                <span style="font-size:18px">🔔</span>
+                <span style="font-size:16px;font-weight:700;color:var(--text)">Уведомления</span>
+                {% if unread_count > 0 %}
+                <span class="notif-badge">{{ unread_count }} новых</span>
+                {% endif %}
+            </div>
+            {% if unread_count > 0 %}
+            <form method="post" action="/cabinet/notifications/mark-read" style="margin:0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                <button type="submit" class="notif-mark-btn">Отметить всё прочитанным</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="notif-stack">
+            {% for n in notifications %}
+            <div class="notif-item {% if not n.is_read %}unread{% endif %}">
+                <span class="notif-item-icon">{% if not n.is_read %}🟡{% else %}✓{% endif %}</span>
+                <div class="notif-item-body">
+                    <div class="notif-item-title">{{ n.title }}</div>
+                    {% if n.text %}
+                    <div class="notif-item-text">{{ n.text }}</div>
+                    {% endif %}
+                    <div class="notif-item-meta">
+                        {{ n.created_at.strftime('%d.%m.%Y %H:%M') if n.created_at else '' }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── HERO профиля ── -->
+    <div class="profile-hero">
+        {% if user.photo_url %}
+        <img src="{{ user.photo_url }}" alt="Фото" class="profile-avatar">
+        {% else %}
+        <div class="profile-avatar-placeholder">👤</div>
+        {% endif %}
+
+        <div class="profile-hero-info">
+            <div class="profile-role-tag">◉ Ученик</div>
+            <div class="profile-name">
+                {{ user.last_name or '' }} {{ user.first_name or user.name }}
+            </div>
+            <span class="profile-tariff">
+                <span class="profile-tariff-dot"></span>
+                {{ user.tariff }}
+            </span>
+        </div>
+
+    </div>
+
+    <!-- ── STATS (год, дата, статус, длительность) ── -->
+    <div class="stats-strip">
+        <div class="stat-item">
+            <div class="stat-icon">📅</div>
+            <div class="stat-text">
+                <div class="stat-value">
+                    {% if user.enrolled_at %}{{ user.enrolled_at.strftime('%m.%Y') }}
+                    {% elif user.created_at %}{{ user.created_at.strftime('%m.%Y') }}
+                    {% else %}—{% endif %}
+                </div>
+                <div class="stat-label">В школе с</div>
+            </div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon">⏱</div>
+            <div class="stat-text">
+                <div class="stat-value">{{ study_duration or '—' }}</div>
+                <div class="stat-label">Уже учится</div>
+            </div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon">🎓</div>
+            <div class="stat-text">
+                <div class="stat-value">
+                    {% if user.university_year %}{{ user.university_year }}{% else %}—{% endif %}
+                </div>
+                <div class="stat-label">Год поступления</div>
+            </div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon" style="background:rgba(5,150,105,0.10)">✅</div>
+            <div class="stat-text">
+                <div class="stat-value" style="color:#059669">Активен</div>
+                <div class="stat-label">Доступ</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── INFO GRID (контакты) ── -->
+    <div class="info-grid">
+        <div class="info-cell">
+            <div class="info-cell-icon">💬</div>
+            <div class="info-cell-label">Telegram</div>
+            <div class="info-cell-value">
+                {% if user.tg_username %}
+                    <a href="https://t.me/{{ user.tg_username }}" target="_blank" rel="noopener">@{{ user.tg_username }}</a>
+                {% else %}
+                    <span class="not-set">Не добавлен</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="info-cell">
+            <div class="info-cell-icon">🔵</div>
+            <div class="info-cell-label">ВКонтакте</div>
+            <div class="info-cell-value">
+                <a href="https://vk.com/id{{ user.vk_id }}" target="_blank" rel="noopener">vk.com/id{{ user.vk_id }}</a>
+            </div>
+        </div>
+
+        <div class="info-cell">
+            <div class="info-cell-icon">📞</div>
+            <div class="info-cell-label">Телефон</div>
+            <div class="info-cell-value">
+                {% if user.phone %}{{ user.phone }}{% else %}<span class="not-set">Не указан</span>{% endif %}
+            </div>
+        </div>
+
+        <div class="info-cell">
+            <div class="info-cell-icon">👨‍👩‍👧</div>
+            <div class="info-cell-label">Телефон родителя</div>
+            <div class="info-cell-value">
+                {% if user.parent_phone %}{{ user.parent_phone }}{% else %}<span class="not-set">Не указан</span>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ТАРИФЫ ── -->
+    <div class="tariffs-card">
+        <span class="tariffs-label">Тарифы обучения</span>
+        <div class="tariff-badges">
+            {% if user.tariff %}
+            <span class="tariff-badge tariff-current">
+                <span class="tariff-dot"></span>
+                {{ user.tariff }}
+                <span style="font-size:11px;font-weight:500;opacity:0.65">текущий</span>
+            </span>
+            {% endif %}
+            {% if user.past_tariffs %}
+                {% for t in user.past_tariffs.split(',') %}
+                {% if t and t != user.tariff %}
+                <span class="tariff-badge tariff-past">{{ t }}</span>
+                {% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if not user.tariff and not user.past_tariffs %}
+                <span style="font-size:13px;color:var(--dim)">Нет данных</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="height:96px"></div>
+</div>
+
+{% set active_tab = "" %}
+{% include "partials/bottom_nav.html" %}
+{% endblock %}

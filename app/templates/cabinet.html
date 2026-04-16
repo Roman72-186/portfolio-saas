@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет{% endblock %}
+{% block content %}
+<div style="space-y:24px">
+    <div style="margin-bottom:32px">
+        <h1 style="font-size:28px;font-weight:700;margin-bottom:6px" class="text-gradient">
+            {% if user.name %}Добро пожаловать, {{ user.name }}!{% else %}Личный кабинет{% endif %}
+        </h1>
+        <p style="color:var(--muted);font-size:15px">
+            Тариф: <span style="color:var(--accent);font-weight:700">{{ user.tariff }}</span>
+        </p>
+    </div>
+
+    <a href="/upload" class="card-blue" style="text-decoration:none;color:inherit;display:block;margin-bottom:12px">
+        <div class="card-icon">📷</div>
+        <div class="card-title">Загрузить портфолио</div>
+        <div class="card-desc">Добавить фото для портфолио</div>
+    </a>
+
+    <div class="card" style="opacity:0.45;cursor:default">
+        <div class="card-icon">📝</div>
+        <div class="card-title">Сдать пробник</div>
+        <div class="card-desc">Скоро будет доступно</div>
+    </div>
+</div>
+{% endblock %}

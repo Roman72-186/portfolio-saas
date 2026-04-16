@@ -1,0 +1,111 @@
+<style>
+.bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: var(--card); border-top: 1px solid var(--border);
+    display: flex; align-items: stretch;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.nav-btn {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    padding: 10px 4px 12px; text-decoration: none;
+    color: var(--dim); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.02em; transition: color 0.15s, background 0.15s;
+    background: none; border: none; font-family: 'Montserrat', sans-serif;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.nav-btn:hover { color: var(--accent); background: var(--accent-soft); opacity: 1; }
+.nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 8px; }
+.nav-btn.nav-active { color: var(--accent); }
+.nav-btn-icon { font-size: 22px; line-height: 1; }
+.nav-btn.nav-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.nav-soon-badge {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.05em;
+    background: var(--surface); color: var(--dim);
+    border-radius: 6px; padding: 1px 5px; text-transform: uppercase;
+}
+</style>
+
+<!-- ── Desktop sidebar (hidden on mobile via .app-sidebar { display:none } in base.html) ── -->
+<aside class="app-sidebar">
+    <div class="desk-brand">
+        <img src="/static/img/logo.svg" alt="Логотип" width="36" height="36"
+             style="border-radius:50%;flex-shrink:0;object-fit:cover">
+        <span class="desk-brand-name">Портфолио</span>
+    </div>
+
+    <nav class="desk-nav">
+        <a href="/cabinet" class="desk-nav-item {% if active_tab == '' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">👤</span>
+            <span>Кабинет</span>
+        </a>
+        <a href="/cabinet/portfolio" class="desk-nav-item {% if active_tab == 'portfolio' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">📷</span>
+            <span>Портфолио</span>
+        </a>
+        <a href="/upload/mock-exam" class="desk-nav-item {% if active_tab == 'mock' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">⭐</span>
+            <span>Пробник</span>
+        </a>
+        <a href="/upload/retake" class="desk-nav-item {% if active_tab == 'retake' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">📝</span>
+            <span>Отработка</span>
+        </a>
+        <a href="/cabinet/scores" class="desk-nav-item {% if active_tab == 'scores' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">📊</span>
+            <span>Баллы</span>
+        </a>
+        <a href="/3dlab" class="desk-nav-item {% if active_tab == '3dlab' %}desk-nav-active{% endif %}">
+            <span class="desk-nav-icon">🧊</span>
+            <span>3D Лаб</span>
+        </a>
+    </nav>
+
+    <div class="desk-nav-footer">
+        <a href="/auth/logout" class="desk-nav-item desk-nav-logout">
+            <span class="desk-nav-icon">↩</span>
+            <span>Выйти</span>
+        </a>
+    </div>
+</aside>
+
+<!-- ── Mobile bottom nav ── -->
+<div id="nav-loader"></div>
+<nav class="bottom-nav">
+    <a href="/cabinet/student" class="nav-btn {% if active_tab == '' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">👤</span>
+        <span>Кабинет</span>
+    </a>
+    <a href="/cabinet/portfolio" class="nav-btn {% if active_tab == 'portfolio' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">📷</span>
+        <span>Портфолио</span>
+    </a>
+    <a href="/upload/mock-exam" class="nav-btn {% if active_tab == 'mock' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">⭐</span>
+        <span>Пробник</span>
+    </a>
+    <a href="/upload/retake" class="nav-btn {% if active_tab == 'retake' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">📝</span>
+        <span>Отработка</span>
+    </a>
+    <a href="/cabinet/scores" class="nav-btn {% if active_tab == 'scores' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">📊</span>
+        <span>Баллы</span>
+    </a>
+    <a href="/3dlab" class="nav-btn {% if active_tab == '3dlab' %}nav-active{% endif %}">
+        <span class="nav-btn-icon">🧊</span>
+        <span>3D Лаб</span>
+    </a>
+</nav>
+<script>
+(function () {
+    var loader = document.getElementById('nav-loader');
+    if (!loader) return;
+    document.querySelector('.bottom-nav').addEventListener('click', function (e) {
+        var btn = e.target.closest('.nav-btn');
+        if (!btn || btn.classList.contains('nav-disabled') || btn.classList.contains('nav-active')) return;
+        loader.classList.add('active');
+    });
+})();
+</script>

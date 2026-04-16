@@ -1,0 +1,11 @@
+{
+  "name": "Портфолио",
+  "short_name": "Портфолио",
+  "description": "Портфолио студентов",
+  "start_url": "/cabinet",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E7EBF4",
+  "theme_color": "#ffffff",
+  "icons": []
+}

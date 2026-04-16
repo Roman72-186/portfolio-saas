@@ -1,0 +1,25 @@
+<div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" type="button" onclick="closeLightbox(event)" aria-label="Закрыть">&times;</button>
+    <img id="lightbox-img" src="" alt="">
+</div>
+<script>
+(function(){
+    var lb = document.getElementById('lightbox');
+    var img = document.getElementById('lightbox-img');
+    window.openLightbox = function(src, alt){
+        if (!src) return;
+        img.src = src;
+        img.alt = alt || '';
+        lb.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    };
+    window.closeLightbox = function(e){
+        if (e && e.target && e.target.tagName === 'IMG' && e.target.id === 'lightbox-img') return;
+        lb.classList.remove('open');
+        document.body.style.overflow = '';
+    };
+    document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && lb.classList.contains('open')) window.closeLightbox();
+    });
+})();
+</script>

@@ -1,0 +1,737 @@
+"""
+Единый роутер карточки ученика для всех ролей персонала.
+
+Доступ:
+  - rank=2 (куратор)   — только свои студенты, только просмотр
+  - rank=3 (модератор) — заглушка, нет доступа
+  - rank=4 (админ)     — все студенты, оценивание + разблокировка
+  - rank=5 (суперадмин) — все студенты, оценивание + разблокировка
+"""
+import asyncio
+import logging
+from collections import defaultdict
+from datetime import datetime, timezone
+from typing import Annotated
+
+from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from sqlalchemy import func
+from sqlalchemy.orm import Session as DBSession
+
+from app.cache import invalidate_session, invalidate_unread
+from app.constants import MOCK_SUBJECTS, MONTHS, TARIFFS
+from app.db.database import get_db
+from app.dependencies import get_current_user, require_admin_role, require_csrf
+from app.models.session import Session
+from app.models.mock_exam_lock import MockExamLock
+from app.models.notification import Notification
+from app.models.role import Role
+from app.models.upload_log import UploadLog
+from app.models.user import User
+from app.models.work import (
+    Work, WORK_TYPE_BEFORE, WORK_TYPE_AFTER,
+    WORK_TYPE_MOCK_EXAM, WORK_TYPE_RETAKE,
+)
+from app.services import s3 as s3_service
+from app.services.utils import compress_image, study_duration_text, group_works
+from app.tmpl import templates
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/cabinet")
+
+
+# ── Access control ────────────────────────────────────────────────────────────
+
+def _require_student_panel(
+    user: Annotated[dict, Depends(get_current_user)],
+) -> dict:
+    """Разрешает доступ куратору (rank=2) и admin/superadmin (rank>=4).
+    Модератор (rank=3) — заглушка, нет доступа к студентам."""
+    rank = user["role_rank"]
+    if rank == 2 or rank >= 4:
+        return user
+    raise HTTPException(status_code=403, detail="Нет доступа")
+
+
+def _get_accessible_students(user: dict, db: DBSession) -> list:
+    """Возвращает список студентов доступных текущему пользователю."""
+    if user["role_rank"] == 2:
+        return (
+            db.query(User)
+            .filter(User.curator_id == user["user_id"], User.is_active == True)
+            .order_by(User.last_name, User.first_name)
+            .all()
+        )
+    # rank >= 4: все активные ученики
+    student_role = db.query(Role).filter(Role.rank == 1).first()
+    if not student_role:
+        return []
+    return (
+        db.query(User)
+        .filter(User.role_id == student_role.id, User.is_active == True)
+        .order_by(User.last_name, User.first_name)
+        .all()
+    )
+
+
+def _check_access(student_id: int, user: dict, db: DBSession) -> User:
+    student = db.query(User).filter(User.id == student_id, User.is_active == True).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+    rank = user["role_rank"]
+    if rank == 2 and student.curator_id != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Нет доступа к этому ученику")
+    return student
+
+
+def _enrich(s: User, counts_by_user: dict, avg_by_user: dict) -> dict:
+    return {
+        "id": s.id,
+        "name": f"{s.last_name or ''} {s.first_name or s.name}".strip(),
+        "photo_url": s.photo_url,
+        "tariff": s.tariff,
+        "avg_score": avg_by_user.get(s.id),
+        "upload_count": counts_by_user.get(s.id, 0),
+        "curator_id": s.curator_id or 0,
+        "enrollment_year": s.enrollment_year or 0,
+    }
+
+
+# ── Main page ─────────────────────────────────────────────────────────────────
+
+@router.get("/students", response_class=HTMLResponse)
+def students_panel(
+    request: Request,
+    user: Annotated[dict, Depends(_require_student_panel)],
+    db: Annotated[DBSession, Depends(get_db)],
+    student: int = Query(0),
+    tab: str = Query("portfolio"),
+):
+    students = _get_accessible_students(user, db)
+
+    counts_by_user: dict = {}
+    avg_by_user: dict = {}
+    if students:
+        student_ids = [s.id for s in students]
+        # Aggregate upload counts per user — O(students) not O(works)
+        count_rows = (
+            db.query(Work.user_id, func.count(Work.id).label("cnt"))
+            .filter(Work.user_id.in_(student_ids), Work.status == "success")
+            .group_by(Work.user_id)
+            .all()
+        )
+        counts_by_user = {r.user_id: r.cnt for r in count_rows}
+
+        # Aggregate avg mock-exam score per user
+        avg_rows = (
+            db.query(Work.user_id, func.avg(Work.score).label("avg"))
+            .filter(
+                Work.user_id.in_(student_ids),
+                Work.work_type == WORK_TYPE_MOCK_EXAM,
+                Work.status == "success",
+                Work.score.isnot(None),
+            )
+            .group_by(Work.user_id)
+            .all()
+        )
+        avg_by_user = {r.user_id: round(float(r.avg)) for r in avg_rows}
+
+    sidebar_students = [_enrich(s, counts_by_user, avg_by_user) for s in students]
+    can_score = user["role_rank"] >= 4
+    sidebar_title = "Мои ученики" if user["role_rank"] == 2 else "Все ученики"
+    valid_tabs = ("portfolio", "mock-exams", "retakes")
+    show_curator_filter = user["role_rank"] >= 4
+
+    # Curator list for admin filter
+    curators: list[dict] = []
+    if show_curator_filter:
+        curator_role = db.query(Role).filter(Role.rank == 2).first()
+        if curator_role:
+            curator_users = (
+                db.query(User)
+                .filter(User.role_id == curator_role.id, User.is_active == True)
+                .order_by(User.last_name, User.first_name)
+                .all()
+            )
+            curators = [
+                {"id": c.id, "name": f"{c.last_name or ''} {c.first_name or c.name}".strip()}
+                for c in curator_users
+            ]
+
+    # Distinct enrollment years
+    enrollment_years = sorted(
+        {s.enrollment_year for s in students if s.enrollment_year},
+        reverse=True,
+    )
+
+    return templates.TemplateResponse("cabinet_students.html", {
+        "request": request,
+        "user": user,
+        "sidebar_students": sidebar_students,
+        "initial_student_id": student,
+        "initial_tab": tab if tab in valid_tabs else "portfolio",
+        "can_score": can_score,
+        "sidebar_title": sidebar_title,
+        "mock_subjects": MOCK_SUBJECTS,
+        "months": MONTHS,
+        "current_year": datetime.now(timezone.utc).year,
+        "show_curator_filter": show_curator_filter,
+        "curators": curators,
+        "enrollment_years": enrollment_years,
+    })
+
+
+# ── AJAX: profile ────────────────────────────────────────────────────────────
+
+@router.get("/students/{student_id}/profile")
+def get_student_profile(
+    student_id: int,
+    user: Annotated[dict, Depends(_require_student_panel)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    student = _check_access(student_id, user, db)
+    enrolled_at = student.enrolled_at or student.created_at
+
+    # Curator name — db.get() hits identity map first (no extra query if already loaded)
+    curator_name = None
+    if student.curator_id:
+        curator = db.get(User, student.curator_id)
+        if curator:
+            curator_name = f"{curator.last_name or ''} {curator.first_name or curator.name}".strip()
+
+    # Work stats
+    works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.status == "success")
+        .all()
+    )
+    portfolio_count = sum(1 for w in works if w.work_type in (WORK_TYPE_BEFORE, WORK_TYPE_AFTER))
+    mock_works = [w for w in works if w.work_type == WORK_TYPE_MOCK_EXAM]
+    retake_count = sum(1 for w in works if w.work_type == WORK_TYPE_RETAKE)
+    scored = [w for w in mock_works if w.score is not None]
+    avg_score = round(sum(float(w.score) for w in scored) / len(scored)) if scored else None
+
+    return JSONResponse({
+        "student": {
+            "id": student.id,
+            "name": f"{student.last_name or ''} {student.first_name or student.name}".strip(),
+            "first_name": student.first_name,
+            "last_name": student.last_name,
+            "photo_url": student.photo_url,
+            "phone": student.phone,
+            "parent_phone": student.parent_phone,
+            "tg_username": student.tg_username,
+            "vk_id": student.vk_id,
+            "about": student.about,
+            "tariff": student.tariff or "—",
+            "past_tariffs": student.past_tariffs,
+            "enrollment_year": student.enrollment_year,
+            "university_year": student.university_year,
+            "study_duration": study_duration_text(enrolled_at) if enrolled_at else None,
+            "is_group_member": student.is_group_member,
+            "profile_completed": student.profile_completed,
+            "curator_name": curator_name,
+            "avg_score": avg_score,
+            "portfolio_count": portfolio_count,
+            "mock_exam_count": len(mock_works),
+            "retake_count": retake_count,
+        },
+    })
+
+
+# ── AJAX: portfolio ───────────────────────────────────────────────────────────
+
+@router.get("/students/{student_id}/portfolio")
+def get_portfolio(
+    student_id: int,
+    user: Annotated[dict, Depends(_require_student_panel)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    student = _check_access(student_id, user, db)
+    enrolled_at = student.enrolled_at or student.created_at
+
+    before_works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.work_type == WORK_TYPE_BEFORE, Work.status == "success")
+        .order_by(Work.created_at.desc()).limit(100).all()
+    )
+    after_works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.work_type == WORK_TYPE_AFTER, Work.status == "success")
+        .order_by(Work.created_at.desc()).limit(300).all()
+    )
+    mock_works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.work_type == WORK_TYPE_MOCK_EXAM, Work.status == "success")
+        .limit(100).all()
+    )
+    scored = [w for w in mock_works if w.score is not None]
+    avg_score = round(sum(float(w.score) for w in scored) / len(scored)) if scored else None
+
+    return JSONResponse({
+        "student": {
+            "id": student.id,
+            "name": f"{student.last_name or ''} {student.first_name or student.name}".strip(),
+            "tariff": student.tariff or "—",
+            "study_duration": study_duration_text(enrolled_at) if enrolled_at else None,
+            "avg_score": avg_score,
+            "photo_url": student.photo_url,
+        },
+        "before_works": [
+            {"s3_url": w.s3_url, "filename": w.filename, "id": w.id}
+            for w in before_works
+        ],
+        "after_by_month": [
+            {
+                "month": g["month"], "year": g["year"], "total": g["total"],
+                "works": [{"s3_url": w.s3_url, "filename": w.filename, "id": w.id} for w in g["works"]],
+            }
+            for g in group_works(after_works)
+        ],
+    })
+
+
+# ── AJAX: mock exams ──────────────────────────────────────────────────────────
+
+@router.get("/students/{student_id}/mock-exams")
+def get_mock_exams(
+    student_id: int,
+    user: Annotated[dict, Depends(_require_student_panel)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    student = _check_access(student_id, user, db)
+    enrolled_at = student.enrolled_at or student.created_at
+
+    mock_works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.work_type == WORK_TYPE_MOCK_EXAM, Work.status == "success")
+        .order_by(Work.created_at.desc()).limit(100).all()
+    )
+    scored = [w for w in mock_works if w.score is not None]
+    avg_score = round(sum(float(w.score) for w in scored) / len(scored)) if scored else None
+
+    works_by_subject: dict = defaultdict(list)
+    for w in mock_works:
+        if w.subject:
+            works_by_subject[w.subject].append(w)
+
+    locks = {
+        lock.subject: {"is_locked": lock.is_locked}
+        for lock in db.query(MockExamLock).filter(MockExamLock.user_id == student_id).all()
+    }
+
+    return JSONResponse({
+        "student": {
+            "id": student.id,
+            "name": f"{student.last_name or ''} {student.first_name or student.name}".strip(),
+            "tariff": student.tariff or "—",
+            "study_duration": study_duration_text(enrolled_at) if enrolled_at else None,
+            "avg_score": avg_score,
+            "photo_url": student.photo_url,
+        },
+        "mock_works": {
+            subject: [
+                {
+                    "id": w.id, "s3_url": w.s3_url, "filename": w.filename,
+                    "score": float(w.score) if w.score is not None else None,
+                    "comment": w.comment,
+                }
+                for w in works_list
+            ]
+            for subject, works_list in works_by_subject.items()
+        },
+        "mock_locks": locks,
+    })
+
+
+# ── AJAX: retakes ─────────────────────────────────────────────────────────────
+
+@router.get("/students/{student_id}/retakes")
+def get_retakes(
+    student_id: int,
+    user: Annotated[dict, Depends(_require_student_panel)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    student = _check_access(student_id, user, db)
+    enrolled_at = student.enrolled_at or student.created_at
+
+    retake_works = (
+        db.query(Work)
+        .filter(Work.user_id == student_id, Work.work_type == WORK_TYPE_RETAKE, Work.status == "success")
+        .order_by(Work.created_at.desc()).limit(100).all()
+    )
+
+    return JSONResponse({
+        "student": {
+            "id": student.id,
+            "name": f"{student.last_name or ''} {student.first_name or student.name}".strip(),
+            "tariff": student.tariff or "—",
+            "study_duration": study_duration_text(enrolled_at) if enrolled_at else None,
+            "photo_url": student.photo_url,
+        },
+        "retakes_by_month": [
+            {
+                "month": g["month"], "year": g["year"], "total": g["total"],
+                "works": [
+                    {
+                        "id": w.id, "s3_url": w.s3_url, "filename": w.filename,
+                        "student_score": float(w.student_score) if w.student_score is not None else None,
+                        "curator_score": float(w.score) if w.score is not None else None,
+                        "comment": w.comment,
+                    }
+                    for w in g["works"]
+                ],
+            }
+            for g in group_works(retake_works)
+        ],
+    })
+
+
+# ── POST: оценить работу ──────────────────────────────────────────────────────
+
+@router.post("/students/{student_id}/works/{work_id}/score")
+def score_work(
+    student_id: int,
+    work_id: int,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    score: float = Form(...),
+    comment: str = Form(""),
+    tab: str = Form("mock-exams"),
+):
+    work = db.query(Work).filter(Work.id == work_id, Work.user_id == student_id).first()
+    if not work:
+        raise HTTPException(status_code=404, detail="Работа не найдена")
+    if tab not in ("portfolio", "mock-exams", "retakes"):
+        tab = "mock-exams"
+
+    if not (0 <= score <= 100):
+        raise HTTPException(status_code=422, detail="Балл должен быть от 0 до 100")
+    work.score = int(round(score))
+    work.comment = (comment.strip() or None)
+    if work.comment and len(work.comment) > 500:
+        work.comment = work.comment[:500]
+    work.scored_at = datetime.now(timezone.utc)
+    work.scored_by_id = user["user_id"]
+
+    db.add(Notification(
+        user_id=work.user_id,
+        title=f"Работа проверена — {int(work.score)} / 100",
+        text=work.comment if work.comment else None,
+        work_id=work.id,
+    ))
+    db.commit()
+    invalidate_unread(work.user_id)
+    return RedirectResponse(
+        f"/cabinet/students?student={student_id}&tab={tab}&saved=1", status_code=302
+    )
+
+
+# ── POST: разблокировать пробник ──────────────────────────────────────────────
+
+@router.post("/students/{student_id}/mock-exams/unlock")
+def unlock_mock_exam(
+    student_id: int,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    subject: str = Form(...),
+):
+    if subject not in MOCK_SUBJECTS:
+        raise HTTPException(status_code=400, detail="Неверный предмет")
+
+    lock = db.query(MockExamLock).filter(
+        MockExamLock.user_id == student_id,
+        MockExamLock.subject == subject,
+    ).first()
+    if lock:
+        lock.is_locked = False
+        lock.unlocked_at = datetime.now(timezone.utc)
+        lock.unlocked_by_id = user["user_id"]
+        db.commit()
+
+    return RedirectResponse(
+        f"/cabinet/students?student={student_id}&tab=mock-exams", status_code=302
+    )
+
+
+# ── POST: редактировать анкету ученика ───────────────────────────────────────
+
+@router.post("/students/{student_id}/profile")
+def edit_student_profile(
+    student_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    phone: str = Form(""),
+    parent_phone: str = Form(""),
+    tg_username: str = Form(""),
+    tariff: str = Form(""),
+    enrollment_year: str = Form(""),
+    university_year: str = Form(""),
+):
+    student = _check_access(student_id, user, db)
+
+    errors = []
+    first_name = first_name.strip()
+    last_name = last_name.strip()
+    phone = phone.strip()
+    parent_phone = parent_phone.strip()
+    tg_username = tg_username.strip().lstrip("@")
+    tariff = tariff.strip().upper()
+
+    if not first_name:
+        errors.append("Имя обязательно")
+    if not last_name:
+        errors.append("Фамилия обязательна")
+    if not phone:
+        errors.append("Телефон обязателен")
+    if tariff and tariff not in TARIFFS:
+        errors.append("Неверный тариф")
+
+    parsed_enrollment_year = None
+    if enrollment_year.strip():
+        try:
+            parsed_enrollment_year = int(enrollment_year.strip())
+            if not (2000 <= parsed_enrollment_year <= 2100):
+                errors.append("Нереальный год поступления")
+        except ValueError:
+            errors.append("Год поступления должен быть числом")
+
+    parsed_university_year = None
+    if university_year.strip():
+        try:
+            parsed_university_year = int(university_year.strip())
+            if not (2000 <= parsed_university_year <= 2100):
+                errors.append("Нереальный год ВУЗ")
+        except ValueError:
+            errors.append("Год ВУЗ должен быть числом")
+
+    if errors:
+        return JSONResponse({"ok": False, "errors": errors}, status_code=400)
+
+    student.first_name = first_name
+    student.last_name = last_name
+    student.name = f"{first_name} {last_name}"
+    if phone:
+        student.phone = phone
+    if parent_phone:
+        student.parent_phone = parent_phone
+    if tg_username:
+        student.tg_username = tg_username
+    if tariff:
+        student.tariff = tariff
+    if parsed_enrollment_year is not None:
+        student.enrollment_year = parsed_enrollment_year
+    if parsed_university_year is not None:
+        student.university_year = parsed_university_year
+    db.commit()
+
+    # Invalidate all cached sessions for this student
+    sessions = db.query(Session).filter(
+        Session.user_id == student_id, Session.is_active == True
+    ).all()
+    for s in sessions:
+        invalidate_session(s.id)
+
+    return JSONResponse({"ok": True})
+
+
+# ── POST: загрузка работ админом за ученика ──────────────────────────────────
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+MAX_SIZE = 10 * 1024 * 1024
+MAX_FILES = 10
+
+WORK_TYPE_LABELS = {
+    "before": "До", "after": "После",
+    "mock_exam": "Пробник", "retake": "Отработка",
+}
+
+
+def _is_allowed_image(content_type: str | None, filename: str | None) -> bool:
+    ct = (content_type or "").lower()
+    if ct.startswith("image/"):
+        return True
+    if ct in ("application/octet-stream", ""):
+        ext = ("." + filename.rsplit(".", 1)[-1].lower()) if filename and "." in filename else ""
+        return ext in _ALLOWED_EXTENSIONS
+    return False
+
+
+@router.post("/students/{student_id}/upload")
+async def admin_upload_works(
+    student_id: int,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    photos: list[UploadFile] = File(...),
+    work_type: str = Form(...),
+    month: str = Form(...),
+    year: int = Form(...),
+    subject: str = Form(""),
+):
+    student = _check_access(student_id, user, db)
+
+    valid_types = {WORK_TYPE_BEFORE, WORK_TYPE_AFTER, WORK_TYPE_MOCK_EXAM, WORK_TYPE_RETAKE}
+    if work_type not in valid_types:
+        return JSONResponse({"ok": False, "error": "Неверный тип работы"}, status_code=400)
+    if month not in MONTHS:
+        return JSONResponse({"ok": False, "error": "Неверный месяц"}, status_code=400)
+    if not student.tariff:
+        return JSONResponse({"ok": False, "error": "У ученика не указан тариф"}, status_code=400)
+    if not student.vk_id:
+        return JSONResponse({"ok": False, "error": "У ученика нет VK ID"}, status_code=400)
+    if work_type == WORK_TYPE_MOCK_EXAM and subject not in MOCK_SUBJECTS:
+        return JSONResponse({"ok": False, "error": "Укажите предмет для пробника"}, status_code=400)
+
+    if not photos or (len(photos) == 1 and not photos[0].filename):
+        return JSONResponse({"ok": False, "error": "Выберите хотя бы одно фото"}, status_code=400)
+    if len(photos) > MAX_FILES:
+        return JSONResponse({"ok": False, "error": f"Максимум {MAX_FILES} фото"}, status_code=400)
+
+    # Read and validate files
+    files_data = []
+    for photo in photos:
+        if not _is_allowed_image(photo.content_type, photo.filename):
+            return JSONResponse({"ok": False, "error": f"Файл «{photo.filename}» — неподдерживаемый формат"}, status_code=400)
+        photo_bytes = await photo.read()
+        if len(photo_bytes) > MAX_SIZE:
+            return JSONResponse({"ok": False, "error": f"Файл «{photo.filename}» слишком большой (макс. 10 МБ)"}, status_code=400)
+        files_data.append((photo.filename or "photo.jpg", photo_bytes))
+
+    vk_id = student.vk_id
+    tariff = student.tariff
+
+    def _build_s3_path(filename: str) -> str:
+        if work_type == WORK_TYPE_BEFORE:
+            return s3_service.s3_path_before(vk_id, tariff, filename)
+        if work_type == WORK_TYPE_MOCK_EXAM:
+            return s3_service.s3_path_mock_exam(vk_id, tariff, filename)
+        if work_type == WORK_TYPE_RETAKE:
+            return s3_service.s3_path_retake(vk_id, tariff, filename)
+        return s3_service.s3_path_after(vk_id, tariff, filename)
+
+    success_count = 0
+    fail_count = 0
+    loop = asyncio.get_running_loop()
+
+    for fname, raw_bytes in files_data:
+        s3_path = _build_s3_path(fname)
+        try:
+            compressed, s3_url = await loop.run_in_executor(
+                None, lambda b=raw_bytes, p=s3_path: (
+                    compress_image(b),
+                    None,
+                )
+            )
+            s3_url = s3_service.upload_to_s3(s3_path, compressed, "image/jpeg")
+
+            work = Work(
+                user_id=student_id,
+                work_type=work_type,
+                month=month,
+                year=year,
+                filename=fname,
+                s3_url=s3_url,
+                s3_path=s3_path,
+                subject=subject if work_type == WORK_TYPE_MOCK_EXAM else None,
+                tariff=tariff,
+                status="success",
+                uploaded_by_id=user["user_id"],
+            )
+            db.add(work)
+            db.add(UploadLog(
+                user_id=student_id,
+                student_name=f"{student.last_name or ''} {student.first_name or student.name}".strip(),
+                tariff=tariff,
+                month=month,
+                photo_type=work_type,
+                photo_count=1,
+                status="success",
+            ))
+            success_count += 1
+        except Exception as exc:
+            logger.error("Admin upload failed for %s: %s", fname, exc)
+            fail_count += 1
+
+    if success_count > 0:
+        db.commit()
+
+    return JSONResponse({"ok": True, "success_count": success_count, "fail_count": fail_count})
+
+
+# ── DELETE: удалить "папку" (все работы за месяц/тип) ────────────────────────
+
+@router.delete("/students/{student_id}/works/bulk")
+async def bulk_delete_works(
+    student_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    import json
+    try:
+        raw = await request.body()
+        body = json.loads(raw) if raw else {}
+    except Exception:
+        body = {}
+
+    work_type = body.get("work_type", "")
+    month = body.get("month", "")
+    year = body.get("year")
+
+    if not work_type or not month or not year:
+        return JSONResponse({"ok": False, "error": "Укажите work_type, month и year"}, status_code=400)
+
+    _check_access(student_id, user, db)
+
+    works = (
+        db.query(Work)
+        .filter(
+            Work.user_id == student_id,
+            Work.work_type == work_type,
+            Work.month == month,
+            Work.year == int(year),
+        )
+        .all()
+    )
+
+    if not works:
+        return JSONResponse({"ok": True, "deleted_count": 0})
+
+    for w in works:
+        if w.s3_path:
+            s3_service.delete_from_s3(w.s3_path)
+        db.delete(w)
+
+    db.commit()
+    return JSONResponse({"ok": True, "deleted_count": len(works)})
+
+
+# ── DELETE: удалить работу (фото) ученика ────────────────────────────────────
+
+@router.delete("/students/{student_id}/works/{work_id}")
+def delete_work(
+    student_id: int,
+    work_id: int,
+    user: Annotated[dict, Depends(require_admin_role)],
+    db: Annotated[DBSession, Depends(get_db)],
+):
+    work = db.query(Work).filter(Work.id == work_id, Work.user_id == student_id).first()
+    if not work:
+        raise HTTPException(status_code=404, detail="Работа не найдена")
+
+    if work.s3_path:
+        from app.services.s3 import delete_from_s3
+        delete_from_s3(work.s3_path)
+
+    db.delete(work)
+    db.commit()
+    return JSONResponse({"ok": True})

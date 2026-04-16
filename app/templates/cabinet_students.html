@@ -1,0 +1,1486 @@
+{% extends "base.html" %}
+{% block title %}Ученики{% endblock %}
+{% block extra_styles %}
+<style>
+.main { max-width: 100% !important; padding: 0 !important; }
+
+/* ── Split layout ── */
+.split-wrap {
+    display: flex;
+    height: calc(100vh - 57px);
+    overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+    width: 280px; flex-shrink: 0;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--card);
+}
+.sidebar-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.sidebar-back {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--muted); font-weight: 500;
+    margin-bottom: 12px;
+}
+.sidebar-back:hover { color: var(--accent); opacity: 1; }
+.sidebar-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin-bottom: 10px;
+}
+.sidebar-search {
+    width: 100%; padding: 8px 12px;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 13px; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none;
+    transition: border-color 0.2s; box-sizing: border-box;
+}
+.sidebar-search:focus { border-color: var(--accent); }
+
+.sidebar-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.sidebar-list::-webkit-scrollbar { width: 4px; }
+.sidebar-list::-webkit-scrollbar-track { background: transparent; }
+.sidebar-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.student-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; cursor: pointer;
+    transition: background 0.15s;
+}
+.student-row:hover { background: var(--bg); }
+.student-row.active { background: var(--accent-soft); }
+.student-row.active .student-row-name { color: var(--accent); font-weight: 700; }
+
+.student-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;
+}
+.student-avatar-ph {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--bg2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+}
+.student-row-info { flex: 1; min-width: 0; }
+.student-row-name {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.student-row-meta { font-size: 11px; color: var(--dim); margin-top: 1px; }
+
+/* ── Main panel ── */
+.split-main {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden; background: var(--bg);
+}
+
+/* ── Tab bar ── */
+.tab-bar {
+    display: none; gap: 2px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card); flex-shrink: 0;
+}
+.tab-btn {
+    padding: 12px 18px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    border: none; background: none;
+    color: var(--dim); font-family: 'Montserrat', sans-serif;
+    transition: color 0.15s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px; position: relative;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.split-main-scroll {
+    flex: 1; overflow-y: auto;
+    padding: 20px 24px;
+}
+.split-main-scroll::-webkit-scrollbar { width: 6px; }
+.split-main-scroll::-webkit-scrollbar-track { background: transparent; }
+.split-main-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── Student hero ── */
+.student-hero {
+    background: linear-gradient(135deg, #1E2D6B 0%, #3B4FC8 100%);
+    border-radius: 16px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(30,45,107,0.2);
+    position: relative; overflow: hidden;
+}
+.student-hero::before {
+    content: ''; position: absolute;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    top: -60px; right: -40px; pointer-events: none;
+}
+.student-hero-avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    object-fit: cover; border: 2px solid rgba(255,255,255,0.25);
+    flex-shrink: 0; position: relative; z-index: 1;
+}
+.student-hero-avatar-ph {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0; position: relative; z-index: 1;
+}
+.student-hero-info { flex: 1; position: relative; z-index: 1; }
+.student-hero-name { font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+.student-hero-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.student-hero-pill {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 14px; padding: 3px 12px;
+    font-size: 12px; color: rgba(255,255,255,0.85); font-weight: 700;
+}
+.student-hero-score {
+    position: relative; z-index: 1; text-align: right; flex-shrink: 0;
+}
+.score-big { font-size: 34px; font-weight: 900; color: #FCD34D; line-height: 1; }
+.score-label {
+    font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ── Portfolio photo grids ── */
+.section-title {
+    font-size: 12px; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.07em;
+    margin-bottom: 12px;
+}
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 6px; margin-bottom: 20px;
+}
+.photo-grid img {
+    width: 100%; aspect-ratio: 1; object-fit: cover;
+    border-radius: 8px; border: 1px solid var(--border);
+    cursor: zoom-in; transition: opacity 0.15s;
+}
+.photo-grid img:hover { opacity: 0.85; }
+
+.month-block {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; overflow: hidden; margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+.month-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+}
+.month-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.month-count { font-size: 12px; color: var(--dim); }
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 6px; padding: 12px;
+}
+.month-grid img {
+    width: 100%; aspect-ratio: 1; object-fit: cover;
+    border-radius: 8px; border: 1px solid var(--border);
+    cursor: zoom-in; transition: opacity 0.15s;
+}
+.month-grid img:hover { opacity: 0.85; }
+
+/* ── Mock exam subject cards ── */
+.subjects-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px; align-items: start;
+}
+.subject-card {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+}
+.subject-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.subject-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.lock-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+}
+.lock-badge.locked { background: rgba(220,38,38,0.08); color: #DC2626; }
+.lock-badge.open   { background: rgba(5,150,105,0.08); color: #059669; }
+.subject-card-body { padding: 14px 16px; }
+
+.photo-strip {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px; margin-bottom: 12px;
+}
+.photo-strip img {
+    width: 100%; aspect-ratio: 1; object-fit: cover;
+    border-radius: 8px; border: 1px solid var(--border);
+    cursor: zoom-in; transition: opacity 0.15s;
+}
+.photo-strip img:hover { opacity: 0.85; }
+.photo-strip-more {
+    aspect-ratio: 1; background: var(--bg2); border-radius: 8px;
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--muted);
+}
+
+/* ── Score chips ── */
+.scored-chip {
+    background: rgba(5,150,105,0.12); color: #059669;
+    border-radius: 8px; padding: 4px 12px;
+    font-size: 14px; font-weight: 900; display: inline-block;
+}
+.score-blue-chip {
+    background: rgba(37,99,235,0.08); color: #2563EB;
+    border-radius: 8px; padding: 4px 12px;
+    font-size: 14px; font-weight: 900; display: inline-block;
+}
+
+/* ── Scored subject card ── */
+.subject-card.is-scored {
+    border-color: rgba(5,150,105,0.4);
+}
+.subject-card.is-scored .subject-card-header {
+    background: rgba(5,150,105,0.05);
+}
+
+/* ── Scored state bar ── */
+.scored-state {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px; flex-wrap: wrap;
+}
+.scored-state-score {
+    font-size: 22px; font-weight: 900; color: #059669; line-height: 1;
+}
+.scored-state-label {
+    font-size: 12px; color: #059669; font-weight: 700;
+    background: rgba(5,150,105,0.1); border-radius: 20px; padding: 3px 10px;
+}
+.scored-edit-toggle {
+    font-size: 12px; color: var(--muted); background: none;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px 12px; cursor: pointer; font-family: 'Montserrat', sans-serif;
+    margin-left: auto;
+}
+.scored-edit-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Toast ── */
+.save-toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #059669; color: #fff;
+    padding: 12px 20px; border-radius: 12px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(5,150,105,0.3);
+    z-index: 300; opacity: 0; transform: translateY(12px);
+    transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+}
+.save-toast.show { opacity: 1; transform: translateY(0); }
+
+/* ── Scoring form ── */
+.score-form {
+    margin-top: 10px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+}
+.score-form-label {
+    font-size: 11px; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+}
+.score-form-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.score-input {
+    width: 88px; padding: 7px 10px;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-weight: 700; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none; transition: border-color 0.2s;
+}
+.score-input:focus { border-color: var(--accent); }
+.comment-input {
+    width: 100%; padding: 7px 10px; box-sizing: border-box;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 13px; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none; resize: vertical;
+    min-height: 50px; transition: border-color 0.2s; margin-bottom: 8px;
+}
+.comment-input:focus { border-color: var(--accent); }
+.score-submit-btn {
+    padding: 7px 18px; border: none; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; transition: opacity 0.15s;
+}
+.score-submit-btn:hover { opacity: 0.85; }
+
+/* ── Unlock form ── */
+.unlock-wrap { margin-bottom: 12px; }
+.unlock-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px; background: none;
+    border: 1.5px solid rgba(220,38,38,0.3); border-radius: 10px;
+    color: #DC2626; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; transition: border-color 0.2s, background 0.2s;
+}
+.unlock-btn:hover { background: rgba(220,38,38,0.05); border-color: #DC2626; }
+
+/* ── Retakes ── */
+.retake-work {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 10px;
+    box-shadow: var(--shadow);
+}
+.retake-work-top {
+    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px;
+}
+.retake-thumb {
+    width: 52px; height: 52px; border-radius: 8px; object-fit: cover;
+    border: 1px solid var(--border); flex-shrink: 0; cursor: zoom-in;
+}
+.retake-thumb-ph {
+    width: 52px; height: 52px; border-radius: 8px;
+    background: var(--bg2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+}
+.retake-filename {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
+}
+
+/* ── Sidebar filters ── */
+.sidebar-filters {
+    padding: 8px 16px 0; display: flex; flex-direction: column; gap: 6px;
+}
+.sidebar-select {
+    width: 100%; padding: 7px 10px;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 12px; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none;
+    transition: border-color 0.2s; box-sizing: border-box;
+    cursor: pointer; appearance: auto;
+}
+.sidebar-select:focus { border-color: var(--accent); }
+
+/* ── Profile details ── */
+.profile-details {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 16px; padding: 20px 24px; margin-bottom: 20px;
+    box-shadow: var(--shadow);
+}
+.profile-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px;
+}
+.profile-field { display: flex; flex-direction: column; gap: 3px; }
+.profile-field-label {
+    font-size: 11px; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.06em;
+}
+.profile-field-value { font-size: 14px; font-weight: 600; color: var(--text); }
+.profile-field-value.empty { color: var(--dim); font-weight: 400; font-style: italic; }
+.profile-field.full-width { grid-column: 1 / -1; }
+.profile-about {
+    font-size: 13px; color: var(--text); line-height: 1.5;
+    background: var(--bg); border-radius: 10px; padding: 10px 14px;
+    white-space: pre-wrap;
+}
+.profile-status-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.profile-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+}
+.profile-badge.ok { background: rgba(5,150,105,0.08); color: #059669; }
+.profile-badge.no { background: rgba(220,38,38,0.06); color: #DC2626; }
+
+/* ── Profile action buttons ── */
+.profile-actions {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 4px;
+}
+.profile-action-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 18px 12px;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow);
+}
+.profile-action-btn:hover { border-color: var(--accent); box-shadow: var(--shadow-lg); }
+.profile-action-icon { font-size: 24px; }
+.profile-action-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.profile-action-count { font-size: 12px; color: var(--dim); font-weight: 600; }
+
+/* ── Back to profile ── */
+.back-to-profile {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    cursor: pointer; margin-bottom: 16px; background: none; border: none;
+    font-family: 'Montserrat', sans-serif; padding: 0;
+}
+.back-to-profile:hover { color: var(--accent); }
+
+/* ── Photo delete button ── */
+.photo-wrap {
+    position: relative; display: inline-block;
+}
+.photo-wrap .photo-del {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(220,38,38,0.85); color: #fff; border: none;
+    font-size: 14px; line-height: 22px; text-align: center;
+    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    z-index: 2;
+}
+.photo-wrap:hover .photo-del { opacity: 1; }
+.photo-del:hover { background: #DC2626; }
+
+/* ── Profile edit ── */
+.profile-edit-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; background: none;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    color: var(--accent); font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 16px;
+}
+.profile-edit-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.profile-edit-input {
+    width: 100%; padding: 7px 10px; box-sizing: border-box;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none;
+    transition: border-color 0.2s;
+}
+.profile-edit-input:focus { border-color: var(--accent); }
+.profile-edit-select {
+    width: 100%; padding: 7px 10px; box-sizing: border-box;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none;
+}
+.profile-edit-actions {
+    display: flex; gap: 10px; margin-top: 16px; grid-column: 1 / -1;
+}
+.profile-save-btn {
+    padding: 9px 24px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+}
+.profile-save-btn:hover { opacity: 0.85; }
+.profile-cancel-btn {
+    padding: 9px 24px; border: 1.5px solid var(--border); border-radius: 10px;
+    background: none; color: var(--muted);
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+}
+.profile-cancel-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Upload modal ── */
+.upload-modal-overlay {
+    position: fixed; inset: 0; background: rgba(10,10,30,0.6);
+    z-index: 250; display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.upload-modal-overlay.open { display: flex; }
+.upload-modal {
+    background: var(--card); border-radius: 18px; padding: 28px 32px;
+    max-width: 480px; width: 100%; box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+    position: relative;
+}
+.upload-modal-title { font-size: 18px; font-weight: 900; color: var(--text); margin-bottom: 20px; }
+.upload-modal-close {
+    position: absolute; top: 14px; right: 14px;
+    background: none; border: none; font-size: 22px; color: var(--muted);
+    cursor: pointer; width: 36px; height: 36px; border-radius: 50%;
+    transition: background 0.15s;
+}
+.upload-modal-close:hover { background: var(--bg2); }
+.upload-field { margin-bottom: 16px; }
+.upload-field-label {
+    font-size: 12px; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+}
+.upload-select {
+    width: 100%; padding: 9px 12px; box-sizing: border-box;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 14px; color: var(--text);
+    font-family: 'Montserrat', sans-serif; outline: none;
+}
+.upload-select:focus { border-color: var(--accent); }
+.upload-file-input {
+    width: 100%; padding: 12px; box-sizing: border-box;
+    background: var(--bg); border: 2px dashed var(--border);
+    border-radius: 12px; font-size: 13px; color: var(--text);
+    font-family: 'Montserrat', sans-serif; cursor: pointer;
+}
+.upload-file-input:hover { border-color: var(--accent); }
+.upload-submit-btn {
+    width: 100%; padding: 12px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; transition: opacity 0.15s;
+}
+.upload-submit-btn:hover { opacity: 0.85; }
+.upload-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Admin upload button ── */
+.admin-upload-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; background: var(--accent); color: #fff;
+    border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; transition: opacity 0.15s;
+}
+.admin-upload-btn:hover { opacity: 0.85; }
+
+/* ── Folder delete button ── */
+.folder-del-btn {
+    background: none; border: 1px solid rgba(220,38,38,0.2);
+    color: #DC2626; border-radius: 8px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; transition: border-color 0.15s;
+}
+.folder-del-btn:hover { border-color: #DC2626; background: rgba(220,38,38,0.05); }
+
+/* ── No works / empty ── */
+.no-works { font-size: 13px; color: var(--dim); padding: 10px 0; }
+
+.empty-state { text-align: center; padding: 64px 20px; color: var(--dim); }
+.empty-icon  { font-size: 40px; margin-bottom: 12px; }
+.empty-text  { font-size: 14px; }
+
+/* ── Lightbox ── */
+.lb {
+    position: fixed; inset: 0; background: rgba(10,10,30,0.88);
+    z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.lb.open { display: flex; }
+.lb img { max-width: 100%; max-height: 88vh; border-radius: 12px; box-shadow: 0 24px 80px rgba(0,0,0,0.5); }
+.lb-close {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer;
+    transition: background 0.2s;
+}
+.lb-close:hover { background: rgba(255,255,255,0.28); }
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+    .split-wrap { flex-direction: column; height: auto; overflow: visible; }
+    .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .sidebar-list { max-height: 200px; }
+    .split-main { overflow: visible; }
+    .split-main-scroll { overflow: visible; padding: 16px; }
+    .subjects-grid { grid-template-columns: 1fr; }
+    .tab-bar { padding: 0 12px; }
+    .profile-grid { grid-template-columns: 1fr; }
+    .profile-actions { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<script>const CSRF_TOKEN = "{{ csrf_token(request) }}";</script>
+
+<div class="split-wrap">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/cabinet" class="sidebar-back">← Кабинет</a>
+            <div class="sidebar-title">{{ sidebar_title }}</div>
+            <input type="text" class="sidebar-search" placeholder="Поиск ученика…"
+                   oninput="filterSidebar()" id="student-search">
+        </div>
+        <div class="sidebar-filters">
+            <select class="sidebar-select" id="filter-tariff" onchange="filterSidebar()">
+                <option value="">Все тарифы</option>
+                <option value="МАКСИМУМ">Максимум</option>
+                <option value="УВЕРЕННЫЙ">Уверенный</option>
+                <option value="Я С ВАМИ">Я с вами</option>
+            </select>
+            {% if show_curator_filter and curators %}
+            <select class="sidebar-select" id="filter-curator" onchange="filterSidebar()">
+                <option value="">Все кураторы</option>
+                {% for c in curators %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% if enrollment_years %}
+            <select class="sidebar-select" id="filter-year" onchange="filterSidebar()">
+                <option value="">Все годы</option>
+                {% for y in enrollment_years %}
+                <option value="{{ y }}">{{ y }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+        </div>
+        <div class="sidebar-list" id="student-list">
+            {% for s in sidebar_students %}
+            <div class="student-row" id="srow-{{ s.id }}" onclick="selectStudent({{ s.id }})"
+                 data-tariff="{{ s.tariff or '' }}" data-curator="{{ s.curator_id }}" data-year="{{ s.enrollment_year }}">
+                {% if s.photo_url %}
+                <img src="{{ s.photo_url }}" class="student-avatar" alt="">
+                {% else %}
+                <div class="student-avatar-ph">👤</div>
+                {% endif %}
+                <div class="student-row-info">
+                    <div class="student-row-name">{{ s.name }}</div>
+                    <div class="student-row-meta">
+                        {{ s.tariff or '—' }}
+                        {% if s.avg_score is not none %} · {{ s.avg_score }} ср.{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not sidebar_students %}
+            <div style="padding:24px 16px;font-size:13px;color:var(--dim);text-align:center">
+                Ученики не найдены
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Main panel ── -->
+    <div class="split-main">
+
+        <!-- Tab bar (shown after student selected) -->
+        <div class="tab-bar" id="tab-bar">
+            <button class="tab-btn" id="tab-portfolio"  onclick="switchTab('portfolio')">Портфолио</button>
+            <button class="tab-btn" id="tab-mock-exams" onclick="switchTab('mock-exams')">Пробники</button>
+            <button class="tab-btn" id="tab-retakes"    onclick="switchTab('retakes')">Отработки</button>
+        </div>
+
+        <div class="split-main-scroll" id="main-panel">
+            <div class="empty-state">
+                <div class="empty-icon">👈</div>
+                <div class="empty-text">Выберите ученика слева</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Lightbox -->
+<div class="lb" id="lb" onclick="lbClose(event)">
+    <button class="lb-close" onclick="lbClose()">&times;</button>
+    <img id="lb-img" src="" alt="">
+</div>
+
+<!-- Toast -->
+<div class="save-toast" id="save-toast">Оценка сохранена</div>
+
+<!-- Upload modal -->
+<div class="upload-modal-overlay" id="upload-modal" onclick="if(event.target===this)closeUploadModal()">
+    <div class="upload-modal">
+        <button class="upload-modal-close" onclick="closeUploadModal()">&times;</button>
+        <div class="upload-modal-title">Загрузить работы</div>
+        <form id="upload-form" onsubmit="return submitUpload(event)">
+            <input type="hidden" name="csrf_token" value="">
+            <div class="upload-field">
+                <div class="upload-field-label">Тип работы</div>
+                <select class="upload-select" name="work_type" id="upload-work-type" onchange="toggleSubjectField()" required>
+                    <option value="before">До обучения</option>
+                    <option value="after" selected>После обучения</option>
+                    <option value="mock_exam">Пробник</option>
+                    <option value="retake">Отработка</option>
+                </select>
+            </div>
+            <div class="upload-field" id="upload-subject-field" style="display:none">
+                <div class="upload-field-label">Предмет</div>
+                <select class="upload-select" name="subject" id="upload-subject">
+                    {% for subj in mock_subjects %}
+                    <option value="{{ subj }}">{{ subj }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="upload-field">
+                <div class="upload-field-label">Месяц</div>
+                <select class="upload-select" name="month" required>
+                    {% for m in months %}
+                    <option value="{{ m }}">{{ m | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="upload-field">
+                <div class="upload-field-label">Год</div>
+                <select class="upload-select" name="year" required>
+                    <option value="{{ current_year - 1 }}">{{ current_year - 1 }}</option>
+                    <option value="{{ current_year }}" selected>{{ current_year }}</option>
+                    <option value="{{ current_year + 1 }}">{{ current_year + 1 }}</option>
+                </select>
+            </div>
+            <div class="upload-field">
+                <div class="upload-field-label">Фотографии (до 10)</div>
+                <input type="file" class="upload-file-input" name="photos" multiple accept="image/*" required>
+            </div>
+            <button type="submit" class="upload-submit-btn" id="upload-submit-btn">Загрузить</button>
+        </form>
+    </div>
+</div>
+
+<script>
+const CAN_SCORE      = {{ can_score | tojson }};
+const MOCK_SUBJECTS  = {{ mock_subjects | tojson }};
+const MONTHS_LIST    = {{ months | tojson }};
+const CURRENT_YEAR   = {{ current_year }};
+const INITIAL_STUDENT_ID = {{ initial_student_id }};
+const INITIAL_TAB    = "{{ initial_tab }}";
+
+var _currentStudentId = null;
+var _currentTab = 'portfolio';
+var _tabCache = {};   // { studentId: { tabName: data } }
+var _viewMode = 'profile'; // 'profile' or 'tab'
+
+// ── Student selection ────────────────────────────────────────────────────────
+
+function selectStudent(id, forceTab) {
+    _currentStudentId = id;
+    if (!_tabCache[id]) _tabCache[id] = {};
+
+    document.querySelectorAll('.student-row').forEach(function(r) { r.classList.remove('active'); });
+    var row = document.getElementById('srow-' + id);
+    if (row) { row.classList.add('active'); row.scrollIntoView({block: 'nearest'}); }
+
+    // If forceTab specified (e.g. after score redirect), go straight to tab
+    if (forceTab) {
+        _viewMode = 'tab';
+        _currentTab = forceTab;
+        document.getElementById('tab-bar').style.display = 'flex';
+        document.getElementById('main-panel').innerHTML =
+            '<div id="student-hero-container"></div>' +
+            '<div id="tab-content"><div style="text-align:center;padding:48px 20px;color:var(--dim)">Загружаем…</div></div>';
+        switchTab(_currentTab);
+        return;
+    }
+
+    // Default: show profile
+    _viewMode = 'profile';
+    document.getElementById('tab-bar').style.display = 'none';
+    document.getElementById('main-panel').innerHTML =
+        '<div style="text-align:center;padding:48px 20px;color:var(--dim)">Загружаем…</div>';
+
+    // Load profile (from cache or fetch)
+    if (_tabCache[id].profile) {
+        renderProfile(_tabCache[id].profile);
+        return;
+    }
+
+    fetch('/cabinet/students/' + id + '/profile')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _tabCache[id].profile = data;
+            renderProfile(data);
+        })
+        .catch(function() {
+            document.getElementById('main-panel').innerHTML =
+                '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Ошибка загрузки</div></div>';
+        });
+}
+
+function openTab(tabName) {
+    _viewMode = 'tab';
+    _currentTab = tabName;
+    document.getElementById('tab-bar').style.display = 'flex';
+    document.getElementById('main-panel').innerHTML =
+        '<div id="student-hero-container"></div>' +
+        '<div id="tab-content"><div style="text-align:center;padding:48px 20px;color:var(--dim)">Загружаем…</div></div>';
+    switchTab(tabName);
+}
+
+function backToProfile() {
+    if (!_currentStudentId) return;
+    _viewMode = 'profile';
+    document.getElementById('tab-bar').style.display = 'none';
+    if (_tabCache[_currentStudentId] && _tabCache[_currentStudentId].profile) {
+        renderProfile(_tabCache[_currentStudentId].profile);
+    } else {
+        selectStudent(_currentStudentId);
+    }
+}
+
+// ── Profile rendering ───────────────────────────────────────────────────────
+
+function renderProfile(data) {
+    var s = data.student;
+    var html = buildHero(s);
+
+    html += '<div class="profile-details"><div class="profile-grid">';
+
+    // Fields
+    html += profileField('Телефон', s.phone);
+    html += profileField('Телефон родителя', s.parent_phone);
+    html += profileField('Telegram', s.tg_username ? '@' + s.tg_username : null);
+    html += profileField('VK ID', s.vk_id);
+    html += profileField('Тариф', s.tariff);
+    html += profileField('Куратор', s.curator_name);
+    html += profileField('Год поступления', s.enrollment_year);
+    html += profileField('Курс университета', s.university_year ? s.university_year + ' курс' : null);
+    if (s.past_tariffs) {
+        html += profileField('Прошлые тарифы', s.past_tariffs, true);
+    }
+    if (s.about) {
+        html += '<div class="profile-field full-width">'
+            + '<div class="profile-field-label">О себе</div>'
+            + '<div class="profile-about">' + esc(s.about) + '</div></div>';
+    }
+
+    // Status badges
+    html += '<div class="profile-field full-width">'
+        + '<div class="profile-field-label">Статус</div>'
+        + '<div class="profile-status-badges">'
+        + '<span class="profile-badge ' + (s.profile_completed ? 'ok' : 'no') + '">'
+        + (s.profile_completed ? '✓ Профиль заполнен' : '✗ Профиль не заполнен') + '</span>'
+        + '<span class="profile-badge ' + (s.is_group_member ? 'ok' : 'no') + '">'
+        + (s.is_group_member ? '✓ В группе VK' : '✗ Не в группе VK') + '</span>'
+        + '</div></div>';
+
+    html += '</div></div>';
+
+    // Edit button (admin/superadmin only)
+    if (CAN_SCORE) {
+        html += '<button class="profile-edit-btn" onclick="startEditProfile()">✏️ Редактировать анкету</button>';
+    }
+
+    // Action buttons
+    html += '<div class="profile-actions">'
+        + '<button class="profile-action-btn" onclick="openTab(\'portfolio\')">'
+        +   '<div class="profile-action-icon">🖼</div>'
+        +   '<div class="profile-action-label">Портфолио</div>'
+        +   '<div class="profile-action-count">' + (s.portfolio_count || 0) + ' работ</div>'
+        + '</button>'
+        + '<button class="profile-action-btn" onclick="openTab(\'mock-exams\')">'
+        +   '<div class="profile-action-icon">📝</div>'
+        +   '<div class="profile-action-label">Пробники</div>'
+        +   '<div class="profile-action-count">' + (s.mock_exam_count || 0) + ' работ</div>'
+        + '</button>'
+        + '<button class="profile-action-btn" onclick="openTab(\'retakes\')">'
+        +   '<div class="profile-action-icon">🔄</div>'
+        +   '<div class="profile-action-label">Отработки</div>'
+        +   '<div class="profile-action-count">' + (s.retake_count || 0) + ' работ</div>'
+        + '</button>'
+        + '</div>';
+
+    document.getElementById('main-panel').innerHTML = html;
+}
+
+function profileField(label, value, fullWidth) {
+    var cls = 'profile-field' + (fullWidth ? ' full-width' : '');
+    var valCls = value != null && value !== '' ? 'profile-field-value' : 'profile-field-value empty';
+    var display = value != null && value !== '' ? esc(String(value)) : 'Не указано';
+    return '<div class="' + cls + '">'
+        + '<div class="profile-field-label">' + esc(label) + '</div>'
+        + '<div class="' + valCls + '">' + display + '</div></div>';
+}
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+
+function switchTab(tabName) {
+    _currentTab = tabName;
+
+    ['portfolio', 'mock-exams', 'retakes'].forEach(function(t) {
+        var btn = document.getElementById('tab-' + t);
+        if (btn) btn.classList.toggle('active', t === tabName);
+    });
+
+    if (!_currentStudentId) return;
+
+    // Serve from cache if available
+    if (_tabCache[_currentStudentId][tabName]) {
+        renderTab(tabName, _tabCache[_currentStudentId][tabName]);
+        return;
+    }
+
+    // Show loading indicator in tab-content only
+    var tc = document.getElementById('tab-content');
+    if (tc) tc.innerHTML = '<div style="text-align:center;padding:48px 20px;color:var(--dim)">Загружаем…</div>';
+
+    fetch('/cabinet/students/' + _currentStudentId + '/' + tabName)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _tabCache[_currentStudentId][tabName] = data;
+            renderTab(tabName, data);
+        })
+        .catch(function() {
+            var tc = document.getElementById('tab-content');
+            if (tc) tc.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Ошибка загрузки данных</div></div>';
+        });
+}
+
+// ── Render dispatch ──────────────────────────────────────────────────────────
+
+function renderTab(tabName, data) {
+    var heroEl = document.getElementById('student-hero-container');
+    if (heroEl) heroEl.innerHTML = buildHero(data.student);
+
+    var tc = document.getElementById('tab-content');
+    if (!tc) return;
+
+    var backBtn = '<button class="back-to-profile" onclick="backToProfile()">← К профилю</button>';
+
+    if (tabName === 'portfolio')  { tc.innerHTML = backBtn + buildPortfolio(data);  }
+    if (tabName === 'mock-exams') { tc.innerHTML = backBtn + buildMockExams(data);  }
+    if (tabName === 'retakes')    { tc.innerHTML = backBtn + buildRetakes(data);    }
+}
+
+// ── Hero ─────────────────────────────────────────────────────────────────────
+
+function buildHero(s) {
+    var avatar = s.photo_url
+        ? '<img src="' + esc(s.photo_url) + '" class="student-hero-avatar" alt="">'
+        : '<div class="student-hero-avatar-ph">👤</div>';
+    var scoreHtml = s.avg_score != null
+        ? '<div class="student-hero-score"><div class="score-big">' + s.avg_score + '</div><div class="score-label">ср. балл</div></div>'
+        : '';
+    var uploadBtn = '';
+    if (CAN_SCORE && _viewMode === 'tab') {
+        uploadBtn = '<div style="position:relative;z-index:1;flex-shrink:0;margin-left:8px">'
+            + '<button class="admin-upload-btn" onclick="openUploadModal()">+ Загрузить</button>'
+            + '</div>';
+    }
+    return '<div class="student-hero">'
+        + avatar
+        + '<div class="student-hero-info">'
+        +   '<div class="student-hero-name">' + esc(s.name) + '</div>'
+        +   '<div class="student-hero-pills">'
+        +     (s.tariff && s.tariff !== '—' ? '<span class="student-hero-pill">' + esc(s.tariff) + '</span>' : '')
+        +     (s.study_duration ? '<span class="student-hero-pill">' + esc(s.study_duration) + '</span>' : '')
+        +   '</div>'
+        + '</div>'
+        + scoreHtml
+        + uploadBtn
+        + '</div>';
+}
+
+// ── Portfolio tab ────────────────────────────────────────────────────────────
+
+function buildPortfolio(data) {
+    var html = '';
+
+    var sid = data.student.id;
+
+    // Before works
+    html += '<div class="section-title">До обучения</div>';
+    if (data.before_works && data.before_works.length) {
+        html += '<div class="photo-grid">';
+        data.before_works.forEach(function(w) {
+            if (w.s3_url) {
+                var img = '<img src="' + esc(w.s3_url) + '" alt="' + esc(w.filename) + '" loading="lazy" onclick="lbOpen(\'' + esc(w.s3_url) + '\')">';
+                html += wrapPhoto(img, sid, w.id);
+            }
+        });
+        html += '</div>';
+    } else {
+        html += '<div class="no-works" style="margin-bottom:20px">Работы не загружены</div>';
+    }
+
+    // After works by month
+    html += '<div class="section-title">После обучения</div>';
+    if (data.after_by_month && data.after_by_month.length) {
+        data.after_by_month.forEach(function(g) {
+            var label = cap(g.month) + ' ' + g.year;
+            var delBtn = CAN_SCORE
+                ? '<button class="folder-del-btn" onclick="deleteFolderWorks(' + sid + ',\'after\',\'' + esc(g.month) + '\',' + g.year + ',' + g.total + ')">🗑 Удалить</button>'
+                : '';
+            html += '<div class="month-block">';
+            html += '<div class="month-header">'
+                + '<span class="month-label">' + esc(label) + '</span>'
+                + '<div style="display:flex;align-items:center;gap:10px">'
+                + '<span class="month-count">' + g.total + ' фото</span>'
+                + delBtn
+                + '</div></div>';
+            html += '<div class="month-grid">';
+            g.works.forEach(function(w) {
+                if (w.s3_url) {
+                    var img = '<img src="' + esc(w.s3_url) + '" alt="' + esc(w.filename) + '" loading="lazy" onclick="lbOpen(\'' + esc(w.s3_url) + '\')">';
+                    html += wrapPhoto(img, sid, w.id);
+                }
+            });
+            html += '</div></div>';
+        });
+    } else {
+        html += '<div class="no-works">Работы не загружены</div>';
+    }
+
+    return html;
+}
+
+// ── Mock exams tab ───────────────────────────────────────────────────────────
+
+function buildMockExams(data) {
+    var html = '<div class="subjects-grid">';
+    MOCK_SUBJECTS.forEach(function(subject) {
+        html += buildSubjectCard(subject, data);
+    });
+    html += '</div>';
+    return html;
+}
+
+function buildSubjectCard(subject, data) {
+    var works    = (data.mock_works || {})[subject] || [];
+    var lock     = (data.mock_locks || {})[subject] || {};
+    var isLocked = lock.is_locked === true;
+    var sid      = data.student.id;
+    var latest   = works.length ? works[0] : null;
+    var isScored = latest && latest.score != null;
+
+    // Header: subject title + lock status
+    var lockBadge = isLocked
+        ? '<span class="lock-badge locked">🔒 Пересдача закрыта</span>'
+        : '<span class="lock-badge open">✓ Открыто</span>';
+
+    var html = '<div class="subject-card' + (isScored ? ' is-scored' : '') + '">'
+        + '<div class="subject-card-header">'
+        +   '<span class="subject-title">' + esc(subject) + '</span>'
+        +   lockBadge
+        + '</div>'
+        + '<div class="subject-card-body">';
+
+    // Unlock button (allow retry) — only for admin/superadmin, only when locked
+    if (CAN_SCORE && isLocked) {
+        html += '<div class="unlock-wrap">'
+            + '<form method="post" action="/cabinet/students/' + sid + '/mock-exams/unlock" style="margin:0">'
+            + '<input type="hidden" name="csrf_token" value="' + CSRF_TOKEN + '">'
+            + '<input type="hidden" name="subject" value="' + esc(subject) + '">'
+            + '<button type="submit" class="unlock-btn" title="Ученик сможет заново загрузить пробник по этому предмету">🔄 Разрешить пересдачу</button>'
+            + '</form></div>';
+    }
+
+    if (works.length) {
+        // Photo strip (up to 6 previews)
+        html += '<div class="photo-strip">';
+        works.slice(0, 6).forEach(function(w) {
+            if (w.s3_url) {
+                var img = '<img src="' + esc(w.s3_url) + '" alt="' + esc(w.filename) + '" loading="lazy" onclick="lbOpen(\'' + esc(w.s3_url) + '\')">';
+                html += wrapPhoto(img, sid, w.id);
+            }
+        });
+        if (works.length > 6) {
+            html += '<div class="photo-strip-more">+' + (works.length - 6) + '</div>';
+        }
+        html += '</div>';
+
+        if (isScored) {
+            // Scored state: prominent score + collapsed edit form
+            var editId = 'edit-form-' + latest.id;
+            html += '<div class="scored-state">'
+                + '<div class="scored-state-score">✅ ' + Math.round(latest.score) + ' / 100</div>'
+                + '<span class="scored-state-label">Проверено</span>';
+            if (CAN_SCORE) {
+                html += '<button class="scored-edit-toggle" onclick="toggleEditForm(\'' + editId + '\', this)">Изменить оценку</button>';
+            }
+            html += '</div>';
+            if (latest.comment) {
+                html += '<div style="font-size:13px;color:var(--muted);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:8px 12px;margin-bottom:10px;white-space:pre-wrap">'
+                    + esc(latest.comment) + '</div>';
+            }
+            if (CAN_SCORE) {
+                html += '<div id="' + editId + '" style="display:none">'
+                    + buildScoreForm(sid, latest.id, 'mock-exams', latest.score, latest.comment)
+                    + '</div>';
+            }
+        } else {
+            // Not scored yet
+            html += '<div style="margin-bottom:8px;font-size:13px;color:var(--dim)">Не оценено</div>';
+            if (CAN_SCORE) {
+                html += buildScoreForm(sid, latest.id, 'mock-exams', null, null);
+            }
+        }
+    } else {
+        html += '<div class="no-works">Нет загруженных работ</div>';
+    }
+
+    html += '</div></div>';
+    return html;
+}
+
+// ── Retakes tab ──────────────────────────────────────────────────────────────
+
+function buildRetakes(data) {
+    if (!data.retakes_by_month || !data.retakes_by_month.length) {
+        return '<div style="text-align:center;padding:48px 20px;color:var(--dim);font-size:14px">Отработок нет</div>';
+    }
+
+    var html = '';
+    data.retakes_by_month.forEach(function(g) {
+        var label = cap(g.month) + ' ' + g.year;
+        var delBtn = CAN_SCORE
+            ? '<button class="folder-del-btn" onclick="deleteFolderWorks(' + _currentStudentId + ',\'retake\',\'' + esc(g.month) + '\',' + g.year + ',' + g.total + ')">🗑 Удалить</button>'
+            : '';
+        html += '<div class="month-block">';
+        html += '<div class="month-header">'
+            + '<span class="month-label">' + esc(label) + '</span>'
+            + '<div style="display:flex;align-items:center;gap:10px">'
+            + '<span class="month-count">' + g.total + ' работ</span>'
+            + delBtn
+            + '</div></div>';
+        html += '<div style="padding:12px 16px">';
+
+        g.works.forEach(function(w) {
+            html += '<div class="retake-work" data-work-id="' + w.id + '">';
+            html += '<div class="retake-work-top">';
+
+            if (w.s3_url) {
+                html += '<img src="' + esc(w.s3_url) + '" class="retake-thumb" loading="lazy" onclick="lbOpen(\'' + esc(w.s3_url) + '\')" alt="">';
+            } else {
+                html += '<div class="retake-thumb-ph">🖼</div>';
+            }
+
+            html += '<div style="flex:1;min-width:0">';
+            html += '<div style="display:flex;align-items:center;gap:8px">';
+            html += '<div class="retake-filename" style="flex:1;min-width:0">' + esc(w.filename) + '</div>';
+            if (CAN_SCORE) {
+                html += '<button class="photo-del" style="opacity:1;position:static;flex-shrink:0" onclick="deleteWork(' + _currentStudentId + ',' + w.id + ',this)" title="Удалить">&times;</button>';
+            }
+            html += '</div>';
+            html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">';
+            if (w.student_score != null) {
+                html += '<span class="score-blue-chip" title="Оценка ученика">👤 ' + Math.round(w.student_score) + ' / 100</span>';
+            }
+            if (w.curator_score != null) {
+                html += '<span class="scored-chip" title="Оценка куратора">⭐ ' + Math.round(w.curator_score) + ' / 100</span>';
+            }
+            html += '</div>';
+            if (w.comment) {
+                html += '<div style="font-size:12px;color:var(--muted);margin-top:5px;white-space:pre-wrap">' + esc(w.comment) + '</div>';
+            }
+            html += '</div></div>';
+
+            // Scoring form for admins
+            if (CAN_SCORE) {
+                html += buildScoreForm(_currentStudentId, w.id, 'retakes', w.curator_score, w.comment);
+            }
+
+            html += '</div>';
+        });
+
+        html += '</div></div>';
+    });
+
+    return html;
+}
+
+// ── Scoring form builder ─────────────────────────────────────────────────────
+
+function buildScoreForm(sid, workId, tab, currentScore, currentComment) {
+    var label = currentScore != null ? 'Изменить оценку' : 'Поставить оценку';
+    return '<div class="score-form">'
+        + '<div class="score-form-label">' + label + '</div>'
+        + '<form method="post" action="/cabinet/students/' + sid + '/works/' + workId + '/score">'
+        + '<input type="hidden" name="csrf_token" value="' + CSRF_TOKEN + '">'
+        + '<input type="hidden" name="tab" value="' + esc(tab) + '">'
+        + '<div class="score-form-row">'
+        + '<input type="number" name="score" class="score-input" min="0" max="100" step="1"'
+        + (currentScore != null ? ' value="' + Math.round(currentScore) + '"' : '')
+        + ' placeholder="0–100" required>'
+        + '<span style="font-size:13px;color:var(--dim)">/ 100</span>'
+        + '</div>'
+        + '<textarea name="comment" class="comment-input" placeholder="Комментарий (необязательно)" maxlength="500">'
+        + (currentComment ? esc(currentComment) : '')
+        + '</textarea>'
+        + '<button type="submit" class="score-submit-btn" onclick="this.disabled=true;this.textContent=\'Сохраняем…\';this.form.submit()">Сохранить</button>'
+        + '</form>'
+        + '</div>';
+}
+
+// ── Toggle edit form (scored works) ──────────────────────────────────────────
+
+function toggleEditForm(id, btn) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var visible = el.style.display !== 'none';
+    el.style.display = visible ? 'none' : 'block';
+    btn.textContent = visible ? 'Изменить оценку' : 'Скрыть';
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function showToast(msg) {
+    var t = document.getElementById('save-toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 3000);
+}
+
+// ── Sidebar filters ─────────────────────────────────────────────────────────
+
+function filterSidebar() {
+    var q = (document.getElementById('student-search').value || '').toLowerCase();
+    var tariff = (document.getElementById('filter-tariff') || {}).value || '';
+    var curator = (document.getElementById('filter-curator') || {}).value || '';
+    var year = (document.getElementById('filter-year') || {}).value || '';
+
+    document.querySelectorAll('.student-row').forEach(function(row) {
+        var name = row.querySelector('.student-row-name').textContent.toLowerCase();
+        var matchName = !q || name.includes(q);
+        var matchTariff = !tariff || row.dataset.tariff === tariff;
+        var matchCurator = !curator || row.dataset.curator === curator;
+        var matchYear = !year || row.dataset.year === year;
+        row.style.display = (matchName && matchTariff && matchCurator && matchYear) ? '' : 'none';
+    });
+}
+
+// ── Lightbox ─────────────────────────────────────────────────────────────────
+
+function lbOpen(src) {
+    document.getElementById('lb-img').src = src;
+    document.getElementById('lb').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+function lbClose(e) {
+    if (e && e.target !== document.getElementById('lb') && !e.target.classList.contains('lb-close')) return;
+    document.getElementById('lb').classList.remove('open');
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') lbClose({target: document.getElementById('lb')});
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function cap(s) {
+    if (!s) return '';
+    return String(s).charAt(0).toUpperCase() + String(s).slice(1);
+}
+
+// ── Profile inline editing ──────────────────────────────────────────────────
+
+function startEditProfile() {
+    if (!_currentStudentId) return;
+    var data = _tabCache[_currentStudentId] && _tabCache[_currentStudentId].profile;
+    if (!data) return;
+    var s = data.student;
+
+    var html = buildHero(s);
+    html += '<div class="profile-details"><div class="profile-grid">';
+    html += editField('Имя', 'first_name', s.first_name || '');
+    html += editField('Фамилия', 'last_name', s.last_name || '');
+    html += editField('Телефон', 'phone', s.phone || '');
+    html += editField('Телефон родителя', 'parent_phone', s.parent_phone || '');
+    html += editField('Telegram', 'tg_username', s.tg_username || '');
+    html += '<div class="profile-field"><div class="profile-field-label">Тариф</div>'
+        + '<select class="profile-edit-select" id="edit-tariff">'
+        + '<option value="МАКСИМУМ"' + (s.tariff === 'МАКСИМУМ' ? ' selected' : '') + '>МАКСИМУМ</option>'
+        + '<option value="УВЕРЕННЫЙ"' + (s.tariff === 'УВЕРЕННЫЙ' ? ' selected' : '') + '>УВЕРЕННЫЙ</option>'
+        + '<option value="Я С ВАМИ"' + (s.tariff === 'Я С ВАМИ' ? ' selected' : '') + '>Я С ВАМИ</option>'
+        + '</select></div>';
+    html += editField('Год поступления', 'enrollment_year', s.enrollment_year || '');
+    html += editField('Год ВУЗ', 'university_year', s.university_year || '');
+    html += '<div class="profile-edit-actions">'
+        + '<button class="profile-save-btn" onclick="saveProfile()">Сохранить</button>'
+        + '<button class="profile-cancel-btn" onclick="cancelEditProfile()">Отмена</button>'
+        + '</div>';
+    html += '</div></div>';
+
+    document.getElementById('main-panel').innerHTML = html;
+}
+
+function editField(label, id, value) {
+    return '<div class="profile-field">'
+        + '<div class="profile-field-label">' + esc(label) + '</div>'
+        + '<input class="profile-edit-input" id="edit-' + id + '" value="' + esc(String(value)) + '">'
+        + '</div>';
+}
+
+function cancelEditProfile() {
+    if (_tabCache[_currentStudentId] && _tabCache[_currentStudentId].profile) {
+        renderProfile(_tabCache[_currentStudentId].profile);
+    }
+}
+
+function saveProfile() {
+    if (!_currentStudentId) return;
+    var body = new FormData();
+    body.append('csrf_token', CSRF_TOKEN);
+    body.append('first_name', document.getElementById('edit-first_name').value);
+    body.append('last_name', document.getElementById('edit-last_name').value);
+    body.append('phone', document.getElementById('edit-phone').value);
+    body.append('parent_phone', document.getElementById('edit-parent_phone').value);
+    body.append('tg_username', document.getElementById('edit-tg_username').value);
+    body.append('tariff', document.getElementById('edit-tariff').value);
+    body.append('enrollment_year', document.getElementById('edit-enrollment_year').value);
+    body.append('university_year', document.getElementById('edit-university_year').value);
+
+    fetch('/cabinet/students/' + _currentStudentId + '/profile', { method: 'POST', body: body })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+        .then(function(res) {
+            if (res.ok && res.data.ok) {
+                // Clear cache and reload
+                delete _tabCache[_currentStudentId].profile;
+                selectStudent(_currentStudentId);
+                showToast('Анкета сохранена');
+            } else {
+                var msg = (res.data.errors || []).join(', ') || 'Ошибка сохранения';
+                alert(msg);
+            }
+        })
+        .catch(function() { alert('Ошибка сети'); });
+}
+
+// ── Delete work (photo) ─────────────────────────────────────────────────────
+
+function deleteWork(studentId, workId, el) {
+    if (!confirm('Удалить эту работу?')) return;
+    fetch('/cabinet/students/' + studentId + '/works/' + workId, {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            // Remove element from DOM
+            var wrap = el.closest('.photo-wrap') || el.closest('.retake-work');
+            if (wrap) wrap.remove();
+            // Clear tab caches for this student
+            if (_tabCache[studentId]) {
+                delete _tabCache[studentId].portfolio;
+                delete _tabCache[studentId]['mock-exams'];
+                delete _tabCache[studentId].retakes;
+                delete _tabCache[studentId].profile;
+            }
+            showToast('Работа удалена');
+        } else {
+            alert('Ошибка удаления');
+        }
+    })
+    .catch(function() { alert('Ошибка сети'); });
+}
+
+function wrapPhoto(imgHtml, studentId, workId) {
+    if (!CAN_SCORE) return imgHtml;
+    return '<div class="photo-wrap">'
+        + imgHtml
+        + '<button class="photo-del" onclick="event.stopPropagation();deleteWork(' + studentId + ',' + workId + ',this)" title="Удалить">&times;</button>'
+        + '</div>';
+}
+
+// ── Upload modal ────────────────────────────────────────────────────────────
+
+function openUploadModal() {
+    if (!_currentStudentId) return;
+    document.querySelector('#upload-form [name="csrf_token"]').value = CSRF_TOKEN;
+    document.getElementById('upload-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeUploadModal() {
+    document.getElementById('upload-modal').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function toggleSubjectField() {
+    var wt = document.getElementById('upload-work-type').value;
+    document.getElementById('upload-subject-field').style.display = (wt === 'mock_exam') ? '' : 'none';
+}
+
+function submitUpload(e) {
+    e.preventDefault();
+    if (!_currentStudentId) return false;
+    var form = document.getElementById('upload-form');
+    var btn = document.getElementById('upload-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Загружаем…';
+
+    var fd = new FormData(form);
+    fd.append('csrf_token', CSRF_TOKEN);
+
+    fetch('/cabinet/students/' + _currentStudentId + '/upload', {
+        method: 'POST',
+        body: fd,
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = 'Загрузить';
+        if (data.ok) {
+            closeUploadModal();
+            // Clear caches and reload
+            if (_tabCache[_currentStudentId]) {
+                delete _tabCache[_currentStudentId].portfolio;
+                delete _tabCache[_currentStudentId]['mock-exams'];
+                delete _tabCache[_currentStudentId].retakes;
+                delete _tabCache[_currentStudentId].profile;
+            }
+            if (_viewMode === 'tab') {
+                switchTab(_currentTab);
+            } else {
+                selectStudent(_currentStudentId);
+            }
+            var msg = data.success_count + ' фото загружено';
+            if (data.fail_count > 0) msg += ', ' + data.fail_count + ' не удалось';
+            showToast(msg);
+            form.reset();
+        } else {
+            alert(data.error || 'Ошибка загрузки');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Загрузить';
+        alert('Ошибка сети');
+    });
+    return false;
+}
+
+// ── Bulk delete (folder) ────────────────────────────────────────────────────
+
+function deleteFolderWorks(studentId, workType, month, year, count) {
+    var label = cap(month) + ' ' + year;
+    if (!confirm('Удалить все ' + count + ' работ за ' + label + '?')) return;
+
+    fetch('/cabinet/students/' + studentId + '/works/bulk', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({work_type: workType, month: month, year: year}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            // Clear caches and reload tab
+            if (_tabCache[studentId]) {
+                delete _tabCache[studentId].portfolio;
+                delete _tabCache[studentId]['mock-exams'];
+                delete _tabCache[studentId].retakes;
+                delete _tabCache[studentId].profile;
+            }
+            switchTab(_currentTab);
+            showToast('Удалено ' + data.deleted_count + ' работ');
+        } else {
+            alert(data.error || 'Ошибка удаления');
+        }
+    })
+    .catch(function() { alert('Ошибка сети'); });
+}
+
+// ── Auto-select on load (after score/redirect) ────────────────────────────────
+
+if (INITIAL_STUDENT_ID) {
+    var _params = new URLSearchParams(location.search);
+    var hasTab = _params.has('tab');
+    if (hasTab) {
+        // After POST redirect (score/unlock) — go straight to tab
+        selectStudent(INITIAL_STUDENT_ID, INITIAL_TAB || 'portfolio');
+    } else {
+        // Normal click — show profile
+        selectStudent(INITIAL_STUDENT_ID);
+    }
+    if (_params.get('saved') === '1') {
+        setTimeout(function() { showToast('Оценка сохранена'); }, 600);
+        history.replaceState(null, '', location.pathname + '?student=' + INITIAL_STUDENT_ID + '&tab=' + _currentTab);
+    }
+}
+</script>
+{% endblock %}

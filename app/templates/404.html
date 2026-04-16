@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}404 — Страница не найдена{% endblock %}
+{% block extra_styles %}
+<style>
+    .page-404 {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 75vh;
+        text-align: center;
+        padding: 24px;
+    }
+
+    .digits {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        line-height: 1;
+        margin-bottom: 32px;
+    }
+
+    .digit {
+        font-size: clamp(96px, 22vw, 180px);
+        font-weight: 900;
+        color: var(--accent-dark);
+        letter-spacing: -4px;
+        font-family: 'Montserrat', sans-serif;
+        user-select: none;
+    }
+
+    .digit-zero {
+        position: relative;
+        width: clamp(90px, 20vw, 170px);
+        height: clamp(110px, 25vw, 200px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 50%;
+        border: clamp(8px, 2vw, 14px) solid var(--accent-dark);
+        box-shadow: 0 0 0 clamp(3px, 0.7vw, 6px) var(--accent-mid),
+                    0 8px 40px rgba(30,45,107,0.3);
+        background: #000;
+        flex-shrink: 0;
+    }
+
+    .digit-zero video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: 50%;
+    }
+
+    .error-title {
+        font-size: clamp(18px, 4vw, 26px);
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 12px;
+    }
+
+    .error-desc {
+        font-size: clamp(13px, 2.5vw, 16px);
+        color: var(--muted);
+        line-height: 1.6;
+        max-width: 360px;
+        margin-bottom: 32px;
+    }
+
+    .btn-home {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--accent);
+        color: #fff;
+        padding: 13px 32px;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+        font-family: 'Montserrat', sans-serif;
+        transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+        box-shadow: var(--shadow-blue);
+    }
+    .btn-home:hover {
+        background: #1d53d8;
+        color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(37,99,235,0.35);
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-404">
+    <div class="digits">
+        <span class="digit">4</span>
+        <div class="digit-zero">
+            <video autoplay loop muted playsinline preload="metadata">
+                <source src="/static/404.mp4" type="video/mp4">
+            </video>
+        </div>
+        <span class="digit">4</span>
+    </div>
+
+    <h1 class="error-title">Страница не найдена</h1>
+    <p class="error-desc">Такой страницы нет — скорее всего, ссылка устарела.</p>
+
+    <a href="/" class="btn-home">← На главную</a>
+    <a href="https://t.me/roman_chatbots" target="_blank" class="btn-home" style="margin-top:12px;background:var(--accent-dark)">
+        ✈ Техподдержка
+    </a>
+</div>
+<script>
+    document.querySelector('.digit-zero video')?.play().catch(() => {});
+</script>
+{% endblock %}

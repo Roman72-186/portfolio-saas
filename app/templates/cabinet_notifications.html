@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Уведомления{% endblock %}
+{% block extra_styles %}
+<style>
+.notif-page { max-width: 640px; margin: 0 auto; padding-bottom: 90px; }
+
+.page-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--muted); font-weight: 600;
+    text-decoration: none; margin-bottom: 20px;
+}
+.page-back:hover { color: var(--accent); opacity: 1; }
+
+.page-title {
+    font-size: 22px; font-weight: 900; color: var(--text); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+}
+.page-title-badge {
+    background: #DC2626; color: #fff;
+    font-size: 12px; font-weight: 700;
+    padding: 2px 10px; border-radius: 20px;
+}
+
+.notif-list { display: flex; flex-direction: column; gap: 10px; }
+
+.notif-card {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 18px; border-radius: 16px;
+    background: var(--card); border: 1px solid var(--border);
+    text-decoration: none; color: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.notif-card:hover { border-color: var(--accent); box-shadow: var(--shadow-lg); opacity: 1; }
+.notif-card.unread {
+    background: rgba(37,99,235,0.04);
+    border-color: rgba(37,99,235,0.2);
+}
+
+.notif-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+
+.notif-body { flex: 1; min-width: 0; }
+.notif-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 4px; line-height: 1.4;
+}
+.notif-card.unread .notif-title { color: var(--accent); }
+.notif-text {
+    font-size: 13px; color: var(--muted); line-height: 1.5;
+    white-space: pre-wrap; margin-bottom: 6px;
+}
+.notif-meta { font-size: 11px; color: var(--dim); }
+
+.notif-arrow {
+    flex-shrink: 0; font-size: 16px; color: var(--dim); margin-top: 2px;
+    align-self: center;
+}
+
+.notif-empty {
+    text-align: center; padding: 64px 20px; color: var(--dim);
+}
+.notif-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.notif-empty-text { font-size: 14px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="notif-page">
+    <a href="/cabinet/student" class="page-back">← Кабинет</a>
+
+    <div class="page-title">
+        🔔 Уведомления
+        {% if unread_count > 0 %}
+        <span class="page-title-badge">{{ unread_count }} новых</span>
+        {% endif %}
+    </div>
+
+    {% if notifications %}
+    <div class="notif-list">
+        {% for n in notifications %}
+        {% if n.work_id %}
+        <a href="/cabinet/scores" class="notif-card {% if not n.is_read %}unread{% endif %}">
+        {% else %}
+        <div class="notif-card {% if not n.is_read %}unread{% endif %}">
+        {% endif %}
+            <div class="notif-icon">{% if not n.is_read %}🟡{% else %}✓{% endif %}</div>
+            <div class="notif-body">
+                <div class="notif-title">{{ n.title }}</div>
+                {% if n.text %}
+                <div class="notif-text">{{ n.text }}</div>
+                {% endif %}
+                <div class="notif-meta">{{ n.created_at.strftime('%d.%m.%Y %H:%M') if n.created_at else '' }}</div>
+            </div>
+            {% if n.work_id %}
+            <div class="notif-arrow">→</div>
+            {% endif %}
+        {% if n.work_id %}
+        </a>
+        {% else %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="notif-empty">
+        <div class="notif-empty-icon">🔔</div>
+        <div class="notif-empty-text">Уведомлений пока нет</div>
+    </div>
+    {% endif %}
+</div>
+
+{% set active_tab = "" %}
+{% include "partials/bottom_nav.html" %}
+{% endblock %}

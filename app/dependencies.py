@@ -1,0 +1,166 @@
+import logging
+import secrets
+from datetime import datetime, timezone
+from typing import Annotated, Callable
+
+log = logging.getLogger(__name__)
+
+from fastapi import Request, Depends, HTTPException, Header, Form
+from sqlalchemy.orm import Session as DBSession, joinedload
+
+from app.cache import get_cached_session, set_cached_session
+from app.config import settings
+from app.csrf import validate_csrf_token
+from app.db.database import get_db
+from app.models.session import Session
+from app.models.user import User
+
+
+def get_current_user(
+    request: Request,
+    db: Annotated[DBSession, Depends(get_db)],
+) -> dict:
+    """Extract and validate session from cookie, join with User and Role."""
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Нет сессии")
+
+    # ── Cache hit ─────────────────────────────────────────────────────────────
+    cached = get_cached_session(session_id)
+    if cached:
+        return cached
+
+    # ── Cache miss: full DB lookup ────────────────────────────────────────────
+    row = (
+        db.query(Session, User)
+        .join(User, Session.user_id == User.id)
+        .options(joinedload(User.role))
+        .filter(Session.id == session_id, Session.is_active == True)
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(status_code=401, detail="Сессия не найдена")
+
+    session, user = row
+
+    if session.expires_at < datetime.now(timezone.utc):
+        session.is_active = False
+        db.commit()
+        raise HTTPException(status_code=401, detail="Сессия истекла")
+
+    if user.deleted_at is not None:
+        raise HTTPException(status_code=403, detail="Аккаунт удалён")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Аккаунт заблокирован")
+
+    role = user.role
+    role_rank = role.rank if role else 0
+    role_name = role.name if role else None
+    permissions: set[str] = {p.codename for p in role.permissions} if role else set()
+    is_admin = role_rank >= 4 if role else user.is_admin
+
+    if role_rank == 0 and not user.is_admin and not user.is_group_member:
+        raise HTTPException(status_code=403, detail="Доступ возможен только участникам группы")
+
+    result = {
+        "session_id": session.id,
+        "user_id": user.id,
+        "vk_id": user.vk_id,
+        "name": user.name,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone,
+        "parent_phone": user.parent_phone,
+        "about": user.about,
+        "profile_completed": user.profile_completed,
+        "portfolio_do_completed": user.portfolio_do_completed,
+        "drive_folder_id": user.drive_folder_id,
+        "curator_id": user.curator_id,
+        "tariff": user.tariff,
+        "photo_url": user.photo_url,
+        "is_admin": is_admin,
+        "is_group_member": user.is_group_member,
+        "last_vk_check_at": user.last_vk_check_at,
+        "tg_username": user.tg_username,
+        "enrollment_year": user.enrollment_year,
+        "university_year": user.university_year,
+        "past_tariffs": user.past_tariffs,
+        "enrolled_at": user.enrolled_at,
+        "created_at": user.created_at,
+        "role_name": role_name,
+        "role_rank": role_rank,
+        "permissions": permissions,
+    }
+
+    set_cached_session(session_id, result)
+    return result
+
+
+def require_role(minimum_rank: int) -> Callable:
+    """Factory: returns a FastAPI dependency that requires role rank >= minimum_rank."""
+    def _dep(user: Annotated[dict, Depends(get_current_user)]) -> dict:
+        if user["role_rank"] < minimum_rank:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return user
+    return _dep
+
+
+def require_permission(codename: str) -> Callable:
+    """Factory: returns a FastAPI dependency that requires a specific permission."""
+    def _dep(user: Annotated[dict, Depends(get_current_user)]) -> dict:
+        if codename not in user["permissions"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return user
+    return _dep
+
+
+# Role aliases for use in route dependencies
+require_student    = require_role(1)
+require_curator    = require_role(2)
+# require_moderator  = require_role(3)  # disabled
+require_admin_role = require_role(4)
+require_superadmin = require_role(5)
+
+
+def require_admin(user: Annotated[dict, Depends(get_current_user)]) -> dict:
+    """Backward-compatible admin check (rank >= 4)."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+    return user
+
+
+def require_internal_api_token(
+    x_internal_token: Annotated[str | None, Header()] = None,
+) -> None:
+    if not settings.internal_api_token:
+        raise HTTPException(status_code=503, detail="Internal API token is not configured")
+    if not secrets.compare_digest(x_internal_token or "", settings.internal_api_token):
+        raise HTTPException(status_code=401, detail="Invalid internal API token")
+
+
+def require_csrf(
+    request: Request,
+    csrf_token: Annotated[str, Form(alias="csrf_token")] = "",
+) -> None:
+    """Validate CSRF token for state-changing POST forms."""
+    session_id = request.cookies.get("session_id", "")
+    if not validate_csrf_token(session_id, csrf_token):
+        log.warning(
+            "CSRF validation failed | path=%s | has_session=%s | has_token=%s | token_prefix=%s",
+            request.url.path,
+            bool(session_id),
+            bool(csrf_token),
+            csrf_token[:10] if csrf_token else "(empty)",
+        )
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен. Обновите страницу и попробуйте снова.")
+
+
+def require_lab3d_token(
+    x_internal_token: Annotated[str | None, Header()] = None,
+) -> None:
+    if not settings.lab3d_internal_token:
+        raise HTTPException(status_code=503, detail="3D Lab SSO token is not configured")
+    if not secrets.compare_digest(x_internal_token or "", settings.lab3d_internal_token):
+        raise HTTPException(status_code=401, detail="Invalid 3D Lab token")

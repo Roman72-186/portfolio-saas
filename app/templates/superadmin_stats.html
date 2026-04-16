@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Статистика периодов{% endblock %}
+{% block extra_styles %}
+<style>
+.ss-wrap { max-width: 960px; margin: 0 auto; }
+.ss-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+.ss-title { font-size: 22px; font-weight: 900; color: var(--text); flex: 1; }
+.ss-back { font-size: 13px; color: var(--dim); text-decoration: none; font-weight: 600; }
+.ss-back:hover { color: var(--accent); }
+
+.ss-filters { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.ss-filters select { font-family: 'Montserrat', sans-serif; font-size: 13px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; min-width: 200px; }
+.ss-filters select:focus { border-color: var(--accent); }
+.ss-filters label { font-size: 11px; font-weight: 700; color: var(--dim); display: flex; flex-direction: column; gap: 4px; }
+.ss-filters button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Montserrat', sans-serif; }
+.ss-filters button:hover { opacity: 0.88; }
+
+.ss-stats-strip { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 18px; box-shadow: var(--shadow); }
+.ss-stat { padding: 18px 20px; border-right: 1px solid var(--border); }
+.ss-stat:last-child { border-right: none; }
+.ss-stat-val { font-size: 32px; font-weight: 900; color: var(--text); line-height: 1; margin-bottom: 4px; }
+.ss-stat-lbl { font-size: 12px; color: var(--dim); font-weight: 500; }
+
+.ss-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.ss-panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+.ss-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.ss-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ss-row:last-child { border-bottom: none; }
+.ss-row-lbl { color: var(--text); }
+.ss-row-val { font-weight: 900; color: var(--accent); }
+
+.ss-table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); margin-bottom: 18px; }
+.ss-table { width: 100%; border-collapse: collapse; }
+.ss-table th { text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); border-bottom: 1px solid var(--border); background: var(--bg); }
+.ss-table td { padding: 9px 14px; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border); }
+.ss-table tr:last-child td { border-bottom: none; }
+.ss-table tr:hover td { background: var(--bg); }
+
+.type-badge { display: inline-flex; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.tb-before { background: rgba(220,38,38,0.08);  color: #DC2626; }
+.tb-after  { background: rgba(5,150,105,0.08);  color: #059669; }
+.tb-mock   { background: rgba(217,119,6,0.1);   color: #D97706; }
+.tb-retake { background: rgba(124,58,237,0.08); color: #7C3AED; }
+
+.ss-period-info { background: rgba(37,99,235,0.05); border: 1.5px solid rgba(37,99,235,0.15); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: var(--text); }
+.ss-period-info strong { color: var(--accent); }
+
+.ss-empty { padding: 40px; text-align: center; color: var(--dim); font-size: 14px; }
+
+@media (max-width: 768px) {
+    .ss-stats-strip { grid-template-columns: 1fr 1fr; }
+    .ss-stat:nth-child(2) { border-right: none; }
+    .ss-stat:nth-child(1), .ss-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
+    .ss-two { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="ss-wrap">
+
+    <div class="ss-header">
+        <a href="/cabinet" class="ss-back">← Дашборд</a>
+        <div class="ss-title">Статистика периодов</div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" action="/cabinet/superadmin/stats" class="ss-filters">
+        <label>
+            Период
+            <select name="period_id">
+                <option value="">— Все работы —</option>
+                {% for p in periods %}
+                <option value="{{ p.id }}" {% if selected_period_id == p.id %}selected{% endif %}>
+                    {{ feature_labels.get(p.feature, p.feature) }}
+                    {% if p.title %} · {{ p.title }}{% endif %}
+                    ({{ p.start_date.strftime('%d.%m.%Y') }} – {{ p.end_date.strftime('%d.%m.%Y') }})
+                    {% if not p.is_active %} [закрыт]{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Тип фичи
+            <select name="feature">
+                <option value="">— Все типы —</option>
+                {% for feat, lbl in feature_labels.items() %}
+                <option value="{{ feat }}" {% if selected_feature == feat %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit">Показать</button>
+    </form>
+
+    {% if stats.period %}
+    <div class="ss-period-info">
+        Период: <strong>{{ feature_labels.get(stats.period.feature, stats.period.feature) }}</strong>
+        {% if stats.period.title %} · {{ stats.period.title }}{% endif %}
+        · {{ stats.period.start_date.strftime('%d.%m.%Y') }} – {{ stats.period.end_date.strftime('%d.%m.%Y') }}
+    </div>
+    {% endif %}
+
+    <!-- Summary -->
+    <div class="ss-stats-strip">
+        <div class="ss-stat">
+            <div class="ss-stat-val">{{ stats.total }}</div>
+            <div class="ss-stat-lbl">Всего работ</div>
+        </div>
+        <div class="ss-stat">
+            <div class="ss-stat-val">{{ stats.submissions | map(attribute='student_id') | list | unique | list | length }}</div>
+            <div class="ss-stat-lbl">Уникальных учеников</div>
+        </div>
+        <div class="ss-stat">
+            {% set scored = stats.submissions | selectattr('score') | list %}
+            <div class="ss-stat-val">
+                {% if scored %}{{ (scored | map(attribute='score') | sum / scored | length) | round(1) }}{% else %}—{% endif %}
+            </div>
+            <div class="ss-stat-lbl">Средний балл</div>
+        </div>
+    </div>
+
+    {% if stats.total > 0 %}
+    <div class="ss-two">
+        <!-- By type -->
+        <div class="ss-panel">
+            <div class="ss-panel-header">По типу работ</div>
+            {% for wtype, cnt in stats.by_type.items() %}
+            <div class="ss-row">
+                <span class="ss-row-lbl">
+                    {% if wtype == 'before' %}<span class="type-badge tb-before">До</span>
+                    {% elif wtype == 'after' %}<span class="type-badge tb-after">После</span>
+                    {% elif wtype == 'mock_exam' %}<span class="type-badge tb-mock">Пробник</span>
+                    {% elif wtype == 'retake' %}<span class="type-badge tb-retake">Пересдача</span>
+                    {% else %}{{ wtype }}{% endif %}
+                </span>
+                <span class="ss-row-val">{{ cnt }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <!-- By tariff -->
+        <div class="ss-panel">
+            <div class="ss-panel-header">По тарифу</div>
+            {% for tariff, cnt in stats.by_tariff.items() %}
+            <div class="ss-row">
+                <span class="ss-row-lbl">{{ tariff }}</span>
+                <span class="ss-row-val">{{ cnt }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Submissions table -->
+    <div class="ss-table-wrap">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.06em;display:flex;justify-content:space-between;align-items:center">
+            Список сдач
+            <span style="font-weight:500;text-transform:none;font-size:12px">первые {{ stats.submissions | length }} записей</span>
+        </div>
+        <table class="ss-table">
+            <thead>
+                <tr>
+                    <th>Ученик</th>
+                    <th>Тип</th>
+                    <th>Тариф</th>
+                    <th>Дата сдачи</th>
+                    <th>Балл</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for s in stats.submissions %}
+            <tr>
+                <td><a href="/cabinet/superadmin/users?q={{ s.student_name }}" style="color:var(--accent);text-decoration:none;font-weight:700">{{ s.student_name }}</a></td>
+                <td>
+                    {% if s.work_type == 'before' %}<span class="type-badge tb-before">До</span>
+                    {% elif s.work_type == 'after' %}<span class="type-badge tb-after">После</span>
+                    {% elif s.work_type == 'mock_exam' %}<span class="type-badge tb-mock">Пробник</span>
+                    {% elif s.work_type == 'retake' %}<span class="type-badge tb-retake">Пересдача</span>
+                    {% else %}{{ s.work_type }}{% endif %}
+                </td>
+                <td style="color:var(--dim);font-size:12px">{{ s.tariff }}</td>
+                <td style="color:var(--dim);font-size:12px">{{ s.created_at.strftime('%d.%m.%Y %H:%M') if s.created_at else '—' }}</td>
+                <td>
+                    {% if s.score is not none %}
+                    <span style="font-weight:700;color:#D97706">{{ s.score | int }}</span>
+                    {% else %}
+                    <span style="color:var(--dim)">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="ss-table-wrap">
+        <div class="ss-empty">Работ за выбранный период нет</div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

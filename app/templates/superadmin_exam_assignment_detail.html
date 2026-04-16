@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} — Задание{% endblock %}
+{% block extra_styles %}
+<style>
+.ea-wrap { max-width: 860px; margin: 0 auto; }
+
+/* ── Header ── */
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; gap: 16px; }
+.page-back { font-size: 13px; color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 6px; }
+.page-back:hover { color: var(--accent); opacity: 1; }
+.page-title { font-size: 24px; font-weight: 900; color: var(--text); margin-top: 6px; line-height: 1.25; }
+.page-meta { font-size: 13px; color: var(--dim); margin-top: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Status badge ── */
+.status-badge { display: inline-flex; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.status-published { background: rgba(5,150,105,0.08); color: #059669; }
+.status-draft     { background: rgba(107,114,128,0.08); color: #6B7280; }
+.status-archived  { background: rgba(156,163,175,0.06); color: #9CA3AF; }
+
+/* ── Actions ── */
+.header-actions { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+.btn-danger { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: rgba(239,68,68,0.08); color: #EF4444; border: 1.5px solid rgba(239,68,68,0.2); border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s, border-color 0.15s; font-family: 'Montserrat', sans-serif; text-decoration: none; }
+.btn-danger:hover { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.4); color: #EF4444; opacity: 1; }
+.btn-secondary { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: var(--card); color: var(--text); border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: border-color 0.15s; font-family: 'Montserrat', sans-serif; text-decoration: none; }
+.btn-secondary:hover { border-color: var(--border-hover); color: var(--text); opacity: 1; }
+.btn-edit { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: var(--accent-soft); color: var(--accent); border: 1.5px solid rgba(37,99,235,0.25); border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s, border-color 0.15s; font-family: 'Montserrat', sans-serif; text-decoration: none; }
+.btn-edit:hover { background: rgba(37,99,235,0.14); border-color: rgba(37,99,235,0.45); color: var(--accent); opacity: 1; }
+
+/* ── Ticket card ── */
+.tickets-section { display: flex; flex-direction: column; gap: 20px; }
+.ticket-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); }
+.ticket-header { display: flex; align-items: center; gap: 14px; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.ticket-num { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ticket-htitle { font-size: 16px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; }
+.ticket-dates { font-size: 12px; color: var(--dim); flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+.ticket-dates span { white-space: nowrap; }
+
+.ticket-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.ticket-desc { padding: 20px 22px; }
+.ticket-desc-label { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.ticket-desc-text { font-size: 14px; color: var(--text); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.ticket-desc-none { font-size: 13px; color: var(--dim); font-style: italic; }
+
+.ticket-img-col { border-left: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg2); min-height: 160px; }
+.ticket-img { width: 100%; max-height: 280px; object-fit: contain; display: block; }
+.ticket-no-img { font-size: 32px; color: var(--dim); text-align: center; }
+
+/* ── Assignees ── */
+.ticket-assignees { padding: 16px 22px; border-top: 1px solid var(--border); }
+.assignees-label { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.assign-all-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: rgba(37,99,235,0.08); color: var(--accent); border-radius: 8px; font-size: 11px; font-weight: 700; }
+.assignees-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.assignee-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: var(--bg2); color: var(--text); border: 1px solid var(--border); }
+.assignee-chip.notified { background: rgba(5,150,105,0.07); border-color: rgba(5,150,105,0.2); color: #059669; }
+.notif-dot { width: 6px; height: 6px; border-radius: 50%; background: #059669; flex-shrink: 0; }
+.notif-dot-pending { background: var(--dim); }
+.assignees-empty { font-size: 13px; color: var(--dim); font-style: italic; }
+.assignees-count { font-size: 12px; color: var(--dim); margin-top: 8px; }
+
+/* ── No tickets ── */
+.empty-tickets { text-align: center; padding: 48px 20px; color: var(--dim); font-size: 15px; }
+
+/* ── Archive confirm modal ── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 2000; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: var(--card); border-radius: 20px; padding: 30px 28px; max-width: 400px; width: 90%; box-shadow: var(--shadow-lg); }
+.modal-title { font-size: 18px; font-weight: 900; color: var(--text); margin-bottom: 10px; }
+.modal-text { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.55; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 768px) {
+    .page-header { flex-direction: column; }
+    .ticket-body { grid-template-columns: 1fr; }
+    .ticket-img-col { border-left: none; border-top: 1px solid var(--border); }
+    .ticket-header { flex-wrap: wrap; gap: 10px; }
+    .ticket-dates { width: 100%; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ea-wrap">
+
+    {% set status_labels = {'published': 'Опубликовано', 'draft': 'Черновик', 'archived': 'Архив'} %}
+    {% set subject_icons = {'Рисунок': '🖌️', 'Композиция': '📐'} %}
+
+    <!-- Header -->
+    <div class="page-header">
+        <div style="flex:1; min-width:0;">
+            <a href="/cabinet/exam-assignments" class="page-back">← Все задания</a>
+            <div class="page-title">{{ assignment.title }}</div>
+            <div class="page-meta">
+                <span class="status-badge status-{{ assignment.status }}">{{ status_labels.get(assignment.status, assignment.status) }}</span>
+                <span>{{ subject_icons.get(assignment.subject, '📋') }} {{ assignment.subject }}</span>
+                <span>·</span>
+                <span>{{ tickets|length }} билет{{ 'а' if tickets|length in [2,3,4] else ('ов' if tickets|length != 1 else '') }}</span>
+                {% if creator %}
+                <span>·</span>
+                <span>Создал: {{ (creator.last_name or '') + ' ' + (creator.first_name or creator.name) | trim }}</span>
+                {% endif %}
+                {% if assignment.created_at %}
+                <span>·</span>
+                <span>{{ assignment.created_at.strftime('%d.%m.%Y') }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-actions">
+            {% if assignment.status != 'archived' %}
+            <a href="/cabinet/exam-assignments/{{ assignment.id }}/edit" class="btn-edit">
+                ✏ Редактировать
+            </a>
+            <button class="btn-danger" onclick="document.getElementById('archiveModal').classList.add('open')">
+                🗂 Архивировать
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tickets -->
+    {% if tickets %}
+    <div class="tickets-section">
+        {% for ticket in tickets %}
+        <div class="ticket-card">
+            <!-- Ticket header -->
+            <div class="ticket-header">
+                <div class="ticket-num">{{ ticket.ticket_number }}</div>
+                <div class="ticket-htitle">{{ ticket.title }}</div>
+                <div class="ticket-dates">
+                    📅
+                    <span>{{ ticket.start_date.strftime('%d.%m.%Y') }} — {{ ticket.end_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+            </div>
+
+            <!-- Ticket body: description + image -->
+            <div class="ticket-body">
+                <div class="ticket-desc">
+                    <div class="ticket-desc-label">Описание</div>
+                    {% if ticket.description %}
+                    <div class="ticket-desc-text">{{ ticket.description | ticket_desc | safe }}</div>
+                    {% else %}
+                    <div class="ticket-desc-none">Описание не добавлено</div>
+                    {% endif %}
+                </div>
+                <div class="ticket-img-col">
+                    {% if ticket.image_s3_url %}
+                    <img src="{{ ticket.image_s3_url }}" alt="Фото билета {{ ticket.ticket_number }}" class="ticket-img">
+                    {% else %}
+                    <div class="ticket-no-img">🖼</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Assignees -->
+            <div class="ticket-assignees">
+                {% if ticket.assign_to_all %}
+                <div class="assignees-label">
+                    Назначено
+                    <span class="assign-all-chip">✓ Всем ученикам</span>
+                </div>
+                {% else %}
+                {% set ticket_assignees = assignees_by_ticket.get(ticket.id, []) %}
+                <div class="assignees-label">
+                    Назначено ученикам
+                    <span style="font-weight:500; color: var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">
+                        ({{ ticket_assignees|length }})
+                    </span>
+                </div>
+                {% if ticket_assignees %}
+                <div class="assignees-grid">
+                    {% for a in ticket_assignees %}
+                    <div class="assignee-chip {{ 'notified' if a.notified else '' }}">
+                        <span class="notif-dot {{ '' if a.notified else 'notif-dot-pending' }}"></span>
+                        {{ a.name }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="assignees-count">
+                    {% set notified_count = ticket_assignees | selectattr('notified') | list | length %}
+                    Уведомлено: {{ notified_count }} из {{ ticket_assignees|length }}
+                </div>
+                {% else %}
+                <div class="assignees-empty">Ученики не назначены</div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-tickets">
+        Билеты не добавлены
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Archive confirm modal -->
+<div class="modal-overlay" id="archiveModal">
+    <div class="modal-box">
+        <div class="modal-title">Архивировать задание?</div>
+        <div class="modal-text">
+            Задание «{{ assignment.title }}» будет перемещено в архив.
+            Ученики перестанут получать уведомления по этому заданию.
+            Действие можно отменить вручную.
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="document.getElementById('archiveModal').classList.remove('open')">
+                Отмена
+            </button>
+            <form method="post" action="/cabinet/exam-assignments/{{ assignment.id }}/archive" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                <button type="submit" class="btn-danger">Архивировать</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Close modal on overlay click
+document.getElementById('archiveModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+});
+</script>
+{% endblock %}

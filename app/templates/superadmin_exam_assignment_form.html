@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+{% block title %}{% if is_edit %}Редактировать задание{% else %}Создать задание для пробника{% endif %}{% endblock %}
+{% block extra_styles %}
+<style>
+.ea-form-wrap { max-width: 820px; margin: 0 auto; }
+.page-back { font-size: 13px; color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 6px; opacity: 1; margin-bottom: 16px; }
+.page-back:hover { color: var(--accent); opacity: 1; }
+.page-title { font-size: 24px; font-weight: 900; margin-bottom: 24px; color: var(--text); }
+
+/* Form card */
+.form-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.form-card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--dim); margin-bottom: 18px; }
+
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.field input[type=text], .field input[type=date], .field select, .field textarea {
+    width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 14px; color: var(--text); background: var(--bg); font-family: 'Montserrat', sans-serif;
+    outline: none; transition: border-color 0.2s; box-sizing: border-box;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+.field textarea { resize: vertical; min-height: 90px; }
+.field-error { border-color: #DC2626 !important; }
+.field-error-msg { font-size: 11px; color: #DC2626; font-weight: 700; margin-top: 4px; display: none; }
+.field-error-msg.visible { display: block; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-hint { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+/* Ticket block */
+.ticket-block {
+    background: var(--bg); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 16px; position: relative;
+}
+.ticket-block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.ticket-num { font-size: 14px; font-weight: 700; color: var(--text); }
+.ticket-remove-btn {
+    background: none; border: 1.5px solid rgba(220,38,38,0.25); border-radius: 8px;
+    color: #DC2626; font-size: 12px; font-weight: 700; padding: 4px 12px;
+    cursor: pointer; font-family: 'Montserrat', sans-serif; transition: border-color 0.2s, background 0.2s;
+}
+.ticket-remove-btn:hover { background: rgba(220,38,38,0.06); border-color: #DC2626; }
+
+/* Image upload */
+.img-upload-area {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 24px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    background: var(--card); position: relative;
+}
+.img-upload-area:hover, .img-upload-area.dragover { border-color: var(--accent); background: var(--accent-soft); }
+.img-upload-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.img-upload-icon { font-size: 28px; margin-bottom: 8px; }
+.img-upload-text { font-size: 13px; color: var(--muted); }
+.img-upload-progress { font-size: 12px; color: var(--accent); margin-top: 6px; display: none; }
+.img-preview { display: none; margin-top: 10px; }
+.img-preview img { max-height: 160px; border-radius: 8px; border: 1px solid var(--border); }
+.img-change-btn { font-size: 11px; color: var(--muted); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: 'Montserrat', sans-serif; margin-top: 6px; }
+
+/* Students selector */
+.students-selector { border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+.students-search { width: 100%; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); background: var(--bg); font-family: 'Montserrat', sans-serif; outline: none; box-sizing: border-box; }
+.students-list { max-height: 180px; overflow-y: auto; }
+.student-option { display: flex; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; transition: background 0.15s; }
+.student-option:hover { background: var(--bg); }
+.student-option input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; }
+.student-option-name { font-size: 13px; color: var(--text); }
+.students-selected-count { font-size: 11px; color: var(--accent); font-weight: 700; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg); }
+.assign-all-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--accent-soft); cursor: pointer; }
+.assign-all-row input { accent-color: var(--accent); }
+.assign-all-label { font-size: 13px; font-weight: 700; color: var(--accent); }
+
+/* Add ticket button */
+.add-ticket-btn {
+    width: 100%; padding: 12px; border: 2px dashed var(--border); border-radius: 14px;
+    background: none; font-size: 14px; font-weight: 700; color: var(--muted);
+    cursor: pointer; font-family: 'Montserrat', sans-serif; transition: border-color 0.2s, color 0.2s;
+    margin-bottom: 20px;
+}
+.add-ticket-btn:hover { border-color: var(--accent); color: var(--accent); }
+.add-ticket-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Submit */
+.form-actions { display: flex; gap: 12px; align-items: center; }
+.btn-save { padding: 12px 32px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Montserrat', sans-serif; transition: opacity 0.15s; }
+.btn-save:hover { opacity: 0.85; }
+.btn-cancel { padding: 12px 20px; background: none; border: 1.5px solid var(--border); border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: 'Montserrat', sans-serif; text-decoration: none; }
+.btn-cancel:hover { border-color: var(--border-hover); color: var(--text); }
+
+@media (max-width: 768px) { .field-row { grid-template-columns: 1fr; } }
+
+/* ── Live preview билета (как увидит ученик) ── */
+.ea-preview-wrap { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--border); }
+.ea-preview-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--dim); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+}
+.ea-preview-card {
+    border-radius: 14px; border: 1.5px solid rgba(217,119,6,0.35);
+    background: #FFFBEB; padding: 16px 18px;
+}
+.ea-preview-title { font-size: 15px; font-weight: 700; color: #92400E; margin-bottom: 6px; }
+.ea-preview-desc { font-size: 13px; color: #78350F; line-height: 1.55; white-space: pre-wrap; }
+.ea-preview-img { width: 100%; border-radius: 10px; margin-top: 12px; border: 1px solid rgba(217,119,6,0.2); display: block; }
+.ea-preview-empty { font-size: 12px; color: #B45309; font-style: italic; opacity: 0.7; }
+
+/* ── Тумблер «Когда включить» ── */
+.activate-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+.activate-opt {
+    flex: 1; cursor: pointer; padding: 10px 14px; border-radius: 10px;
+    border: 1.5px solid var(--border); background: var(--card);
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    text-align: center; transition: all 0.15s; user-select: none;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.activate-opt:hover { border-color: var(--accent); color: var(--accent); }
+.activate-opt input[type=radio] { display: none; }
+.activate-opt.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.activate-hint { font-size: 11px; color: var(--dim); margin-top: -4px; margin-bottom: 8px; }
+.scheduled-date-wrap { display: none; }
+.scheduled-date-wrap.visible { display: block; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ea-form-wrap">
+    {% if is_edit %}
+    <a href="/cabinet/exam-assignments/{{ assignment.id }}" class="page-back">← К заданию</a>
+    <div class="page-title">Редактировать задание</div>
+    {% else %}
+    <a href="/cabinet/exam-assignments" class="page-back">← Все задания</a>
+    <div class="page-title">Создать билет для пробника</div>
+    {% endif %}
+
+    <form method="post" action="{% if is_edit %}/cabinet/exam-assignments/{{ assignment.id }}/edit{% else %}/cabinet/exam-assignments/create{% endif %}" id="main-form" novalidate onsubmit="return validateForm(event)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <input type="hidden" name="ticket_count" id="ticket_count" value="1">
+
+        <!-- Основная информация -->
+        <div class="form-card">
+            <div class="form-card-title">Основная информация</div>
+            <div class="field">
+                <label for="title">Название задания <span style="color:#DC2626">*</span></label>
+                <input type="text" id="title" name="title" value="{{ assignment.title if is_edit else '' }}" placeholder="Пробник по рисунку — апрель 2026" maxlength="200">
+                <div class="field-error-msg" id="err-main-title">Заполните название задания</div>
+            </div>
+            <div class="field">
+                <label for="subject">Предмет <span style="color:#DC2626">*</span></label>
+                <select id="subject" name="subject">
+                    {% for s in subjects %}
+                    <option value="{{ s }}" {% if is_edit and assignment.subject == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Билеты -->
+        <div id="tickets-container"></div>
+
+        <button type="button" class="add-ticket-btn" id="add-ticket-btn" onclick="addTicket()">
+            + Добавить билет (максимум 10)
+        </button>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-save">{% if is_edit %}Сохранить изменения{% else %}Сохранить задание{% endif %}</button>
+            <a href="{% if is_edit %}/cabinet/exam-assignments/{{ assignment.id }}{% else %}/cabinet/exam-assignments{% endif %}" class="btn-cancel">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+var ALL_STUDENTS = {{ student_list | tojson }};
+var EXISTING_TICKETS = {{ existing_tickets_json | safe if existing_tickets_json else '[]' }};
+var IS_EDIT = {{ 'true' if is_edit else 'false' }};
+var ticketCount = 0;
+var MAX_TICKETS = 10;
+
+function addTicket() {
+    if (ticketCount >= MAX_TICKETS) return;
+    ticketCount++;
+    document.getElementById('ticket_count').value = ticketCount;
+
+    var container = document.getElementById('tickets-container');
+    var div = document.createElement('div');
+    div.className = 'ticket-block';
+    div.id = 'ticket-block-' + ticketCount;
+    div.innerHTML = buildTicketHTML(ticketCount);
+    container.appendChild(div);
+
+    updateAddBtn();
+    initStudentSearch(ticketCount);
+    initImageUpload(ticketCount);
+    attachPreviewListeners(ticketCount);
+}
+
+// ── Activation mode toggle ───────────────────────────────────────────────────
+
+function onActivateModeChange(n) {
+    var toggle = document.getElementById('activate-toggle-' + n);
+    if (!toggle) return;
+    toggle.querySelectorAll('.activate-opt').forEach(function(opt) {
+        var radio = opt.querySelector('input[type=radio]');
+        if (radio && radio.checked) opt.classList.add('active');
+        else opt.classList.remove('active');
+    });
+    var mode = (toggle.querySelector('input[type=radio]:checked') || {}).value || 'scheduled';
+    var startWrap = document.getElementById('start-wrap-' + n);
+    var startInput = startWrap ? startWrap.querySelector('input[type=date]') : null;
+    if (mode === 'now') {
+        if (startWrap) startWrap.classList.remove('visible');
+        if (startInput) {
+            startInput.removeAttribute('required');
+            startInput.classList.remove('field-error');
+            var errStart = document.getElementById('err-start-' + n);
+            if (errStart) errStart.classList.remove('visible');
+        }
+    } else {
+        if (startWrap) startWrap.classList.add('visible');
+        if (startInput) startInput.setAttribute('required', 'required');
+    }
+}
+
+// ── Live preview ─────────────────────────────────────────────────────────────
+
+function attachPreviewListeners(n) {
+    var titleInput = document.querySelector('[name="ticket_' + n + '_title"]');
+    var descInput = document.querySelector('[name="ticket_' + n + '_description"]');
+    if (titleInput) {
+        titleInput.addEventListener('input', function() {
+            var t = titleInput.value.trim();
+            document.getElementById('prev-title-' + n).textContent = '📋 ' + (t || 'Название билета');
+        });
+    }
+    if (descInput) {
+        descInput.addEventListener('input', function() {
+            var el = document.getElementById('prev-desc-' + n);
+            var v = descInput.value;
+            if (v) {
+                el.textContent = v;
+                el.style.display = 'block';
+            } else {
+                el.style.display = 'none';
+                el.textContent = '';
+            }
+        });
+    }
+}
+
+function removeTicket(n) {
+    var block = document.getElementById('ticket-block-' + n);
+    if (block) block.remove();
+
+    // Renumber remaining tickets
+    var blocks = document.querySelectorAll('.ticket-block');
+    ticketCount = blocks.length;
+    blocks.forEach(function(b, idx) {
+        var newNum = idx + 1;
+        b.id = 'ticket-block-' + newNum;
+        b.querySelector('.ticket-num').textContent = 'Билет ' + newNum;
+        // Update all name attributes
+        b.querySelectorAll('[data-ticket]').forEach(function(el) {
+            var field = el.getAttribute('data-ticket');
+            el.name = 'ticket_' + newNum + '_' + field;
+        });
+        b.querySelector('.ticket-remove-btn').setAttribute('onclick', 'removeTicket(' + newNum + ')');
+    });
+    document.getElementById('ticket_count').value = ticketCount;
+    updateAddBtn();
+}
+
+function updateAddBtn() {
+    var btn = document.getElementById('add-ticket-btn');
+    btn.disabled = ticketCount >= MAX_TICKETS;
+}
+
+function buildTicketHTML(n) {
+    var today = new Date().toISOString().split('T')[0];
+    return '<div class="ticket-block-header">'
+        + '<span class="ticket-num">Билет ' + n + '</span>'
+        + (n > 1 ? '<button type="button" class="ticket-remove-btn" onclick="removeTicket(' + n + ')">Удалить</button>' : '')
+        + '</div>'
+
+        // Title
+        + '<div class="field"><label>Название билета <span style="color:#DC2626">*</span></label>'
+        + '<input type="text" id="ticket-title-' + n + '" name="ticket_' + n + '_title" data-ticket="title" placeholder="Натюрморт с фруктами" maxlength="200">'
+        + '<div class="field-error-msg" id="err-title-' + n + '">Заполните название билета</div></div>'
+
+        // Description
+        + '<div class="field"><label>Описание задания</label>'
+        + '<textarea name="ticket_' + n + '_description" data-ticket="description" placeholder="Опишите условия задания подробно…" maxlength="2000"></textarea></div>'
+
+        // Image upload
+        + '<div class="field"><label>Фото задания</label>'
+        + '<div class="img-upload-area" id="upload-area-' + n + '" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,' + n + ')">'
+        + '<input type="file" accept="image/*" onchange="fileSelected(this,' + n + ')">'
+        + '<div class="img-upload-icon">🖼️</div>'
+        + '<div class="img-upload-text">Перетащите или нажмите для выбора</div>'
+        + '<div class="img-upload-progress" id="upload-progress-' + n + '">Загружаем…</div>'
+        + '</div>'
+        + '<div class="img-preview" id="img-preview-' + n + '"><img id="img-prev-' + n + '" src="" alt=""><br><button type="button" class="img-change-btn" onclick="resetImage(' + n + ')">Изменить фото</button></div>'
+        + '<input type="hidden" name="ticket_' + n + '_image_url" data-ticket="image_url" id="img-url-' + n + '">'
+        + '<input type="hidden" name="ticket_' + n + '_image_path" data-ticket="image_path" id="img-path-' + n + '"></div>'
+
+        // Activation mode toggle
+        + '<div class="field"><label>Когда включить билет</label>'
+        + '<div class="activate-toggle" id="activate-toggle-' + n + '">'
+        + '<label class="activate-opt" data-mode="now">'
+        + '<input type="radio" name="ticket_' + n + '_activate_mode" value="now" onchange="onActivateModeChange(' + n + ')">'
+        + '⚡ Включить сейчас</label>'
+        + '<label class="activate-opt active" data-mode="scheduled">'
+        + '<input type="radio" name="ticket_' + n + '_activate_mode" value="scheduled" checked onchange="onActivateModeChange(' + n + ')">'
+        + '🗓 По дате</label>'
+        + '</div>'
+        + '<div class="activate-hint">Включается в 00:00 по Москве в указанную дату.</div>'
+        + '</div>'
+
+        // Dates
+        + '<div class="field-row">'
+        + '<div class="field scheduled-date-wrap visible" id="start-wrap-' + n + '"><label>Дата начала <span style="color:#DC2626">*</span></label>'
+        + '<input type="date" id="ticket-start-' + n + '" name="ticket_' + n + '_start_date" data-ticket="start_date" value="' + today + '" required>'
+        + '<div class="field-error-msg" id="err-start-' + n + '">Укажите дату начала</div></div>'
+        + '<div class="field"><label>Дата окончания <span style="color:#DC2626">*</span></label>'
+        + '<input type="date" id="ticket-end-' + n + '" name="ticket_' + n + '_end_date" data-ticket="end_date" min="' + today + '">'
+        + '<div class="field-error-msg" id="err-end-' + n + '">Укажите дату окончания</div></div>'
+        + '</div>'
+
+        // Students
+        + '<div class="field"><label>Кому выдать <span style="color:#DC2626">*</span></label>'
+        + '<div class="students-selector">'
+        + '<div class="assign-all-row" onclick="toggleAll(' + n + ')">'
+        + '<input type="checkbox" name="ticket_' + n + '_assign_all" data-ticket="assign_all" id="all-' + n + '" onchange="toggleAll(' + n + ')" onclick="event.stopPropagation()">'
+        + '<span class="assign-all-label">Всем ученикам</span>'
+        + '</div>'
+        + '<div id="students-panel-' + n + '">'
+        + '<input type="text" class="students-search" placeholder="Поиск по имени…" oninput="filterStudents(this,' + n + ')">'
+        + '<div class="students-list" id="students-list-' + n + '"></div>'
+        + '<div class="students-selected-count" id="students-count-' + n + '">0 выбрано</div>'
+        + '</div>'
+        + '</div>'
+        + '<input type="hidden" name="ticket_' + n + '_student_ids" data-ticket="student_ids" id="student-ids-' + n + '">'
+        + '<div class="field-error-msg" id="err-students-' + n + '">Выберите хотя бы одного ученика или «Всем ученикам»</div></div>'
+
+        // Live preview (как увидит ученик)
+        + '<div class="ea-preview-wrap">'
+        + '<div class="ea-preview-label">👁 Так увидит ученик</div>'
+        + '<div class="ea-preview-card">'
+        + '<div class="ea-preview-title" id="prev-title-' + n + '">📋 Название билета</div>'
+        + '<div class="ea-preview-desc" id="prev-desc-' + n + '" style="display:none"></div>'
+        + '<img class="ea-preview-img" id="prev-img-' + n + '" style="display:none" alt="">'
+        + '</div>'
+        + '</div>';
+}
+
+function initStudentSearch(n) {
+    var list = document.getElementById('students-list-' + n);
+    ALL_STUDENTS.forEach(function(s) {
+        var row = document.createElement('div');
+        row.className = 'student-option';
+        row.setAttribute('data-name', s.name.toLowerCase());
+        row.innerHTML = '<input type="checkbox" value="' + s.id + '" onchange="updateStudentIds(' + n + ')">'
+            + '<span class="student-option-name">' + esc(s.name) + '</span>';
+        list.appendChild(row);
+    });
+}
+
+function filterStudents(input, n) {
+    var q = input.value.toLowerCase();
+    document.querySelectorAll('#students-list-' + n + ' .student-option').forEach(function(row) {
+        row.style.display = row.getAttribute('data-name').includes(q) ? '' : 'none';
+    });
+}
+
+function updateStudentIds(n) {
+    var ids = [];
+    document.querySelectorAll('#students-list-' + n + ' input[type=checkbox]:checked').forEach(function(cb) {
+        ids.push(cb.value);
+    });
+    document.getElementById('student-ids-' + n).value = ids.join(',');
+    document.getElementById('students-count-' + n).textContent = ids.length + ' выбрано';
+}
+
+function toggleAll(n) {
+    var cb = document.getElementById('all-' + n);
+    var panel = document.getElementById('students-panel-' + n);
+    panel.style.display = cb.checked ? 'none' : '';
+}
+
+// ── Image upload ─────────────────────────────────────────────────────────────
+
+function initImageUpload(n) { /* nothing needed — handlers via inline events */ }
+
+function fileSelected(input, n) {
+    if (input.files && input.files[0]) {
+        showLocalPreview(input.files[0], n);
+        uploadTicketImage(input.files[0], n);
+    }
+}
+
+function showLocalPreview(file, n) {
+    var prev = document.getElementById('prev-img-' + n);
+    if (!prev) return;
+    if (prev.dataset.objectUrl) URL.revokeObjectURL(prev.dataset.objectUrl);
+    var url = URL.createObjectURL(file);
+    prev.src = url;
+    prev.dataset.objectUrl = url;
+    prev.style.display = 'block';
+}
+
+function dragOver(event, area) { event.preventDefault(); area.classList.add('dragover'); }
+function dragLeave(area) { area.classList.remove('dragover'); }
+function dropFile(event, n) {
+    event.preventDefault();
+    var area = document.getElementById('upload-area-' + n);
+    area.classList.remove('dragover');
+    var file = event.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) uploadTicketImage(file, n);
+}
+
+function uploadTicketImage(file, n) {
+    var progress = document.getElementById('upload-progress-' + n);
+    progress.style.display = 'block';
+
+    var formData = new FormData();
+    formData.append('file', file);
+    var csrfInput = document.querySelector('input[name="csrf_token"]');
+    if (csrfInput) { formData.append('csrf_token', csrfInput.value); }
+
+    fetch('/cabinet/upload-ticket-image', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        progress.style.display = 'none';
+        if (data.url) {
+            document.getElementById('img-url-' + n).value = data.url;
+            document.getElementById('img-path-' + n).value = data.path || '';
+            document.getElementById('img-prev-' + n).src = data.url;
+            document.getElementById('img-preview-' + n).style.display = 'block';
+            document.getElementById('upload-area-' + n).style.display = 'none';
+            // Swap превью на стабильный S3-URL
+            var prev = document.getElementById('prev-img-' + n);
+            if (prev) {
+                if (prev.dataset.objectUrl) { URL.revokeObjectURL(prev.dataset.objectUrl); delete prev.dataset.objectUrl; }
+                prev.src = data.url;
+                prev.style.display = 'block';
+            }
+        } else {
+            // S3 not configured — still allow form save without image
+            progress.textContent = 'Фото не удалось загрузить (S3 не настроен), продолжите без фото';
+        }
+    })
+    .catch(function() {
+        progress.textContent = 'Ошибка загрузки';
+    });
+}
+
+function resetImage(n) {
+    document.getElementById('img-url-' + n).value = '';
+    document.getElementById('img-path-' + n).value = '';
+    document.getElementById('img-preview-' + n).style.display = 'none';
+    document.getElementById('upload-area-' + n).style.display = 'block';
+    var prev = document.getElementById('prev-img-' + n);
+    if (prev) {
+        if (prev.dataset.objectUrl) { URL.revokeObjectURL(prev.dataset.objectUrl); delete prev.dataset.objectUrl; }
+        prev.src = '';
+        prev.style.display = 'none';
+    }
+}
+
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Pre-fill в режиме редактирования ─────────────────────────────────────────
+
+function populateTicket(n, t) {
+    // title
+    var titleInput = document.querySelector('[name="ticket_' + n + '_title"]');
+    if (titleInput && t.title) {
+        titleInput.value = t.title;
+        titleInput.dispatchEvent(new Event('input'));
+    }
+    // description
+    var descInput = document.querySelector('[name="ticket_' + n + '_description"]');
+    if (descInput && t.description) {
+        descInput.value = t.description;
+        descInput.dispatchEvent(new Event('input'));
+    }
+    // image
+    if (t.image_url) {
+        document.getElementById('img-url-' + n).value = t.image_url;
+        document.getElementById('img-path-' + n).value = t.image_path || '';
+        document.getElementById('img-prev-' + n).src = t.image_url;
+        document.getElementById('img-preview-' + n).style.display = 'block';
+        document.getElementById('upload-area-' + n).style.display = 'none';
+        var prev = document.getElementById('prev-img-' + n);
+        if (prev) { prev.src = t.image_url; prev.style.display = 'block'; }
+    }
+    // dates — режим всегда «по дате» при редактировании (start_date уже есть)
+    var startInput = document.querySelector('[name="ticket_' + n + '_start_date"]');
+    var endInput = document.querySelector('[name="ticket_' + n + '_end_date"]');
+    if (startInput && t.start_date) startInput.value = t.start_date;
+    if (endInput && t.end_date) endInput.value = t.end_date;
+    // assign_to_all
+    if (t.assign_to_all) {
+        var allCb = document.getElementById('all-' + n);
+        if (allCb) {
+            allCb.checked = true;
+            toggleAll(n);
+        }
+    } else if (t.student_ids && t.student_ids.length) {
+        // Pre-check student checkboxes
+        var ids = new Set(t.student_ids.map(String));
+        document.querySelectorAll('#students-list-' + n + ' input[type=checkbox]').forEach(function(cb) {
+            if (ids.has(cb.value)) cb.checked = true;
+        });
+        updateStudentIds(n);
+    }
+}
+
+if (IS_EDIT && EXISTING_TICKETS.length > 0) {
+    EXISTING_TICKETS.forEach(function(t, idx) {
+        addTicket();
+        populateTicket(idx + 1, t);
+    });
+} else {
+    // Создание: первый билет по умолчанию
+    addTicket();
+}
+
+// ── Inline form validation ────────────────────────────────────────────────────
+
+function setFieldError(inputEl, msgEl, hasError) {
+    if (!inputEl || !msgEl) return;
+    if (hasError) {
+        inputEl.classList.add('field-error');
+        msgEl.classList.add('visible');
+    } else {
+        inputEl.classList.remove('field-error');
+        msgEl.classList.remove('visible');
+    }
+}
+
+// Clear error on input/change
+document.addEventListener('input', function(e) {
+    e.target.classList.remove('field-error');
+    var next = e.target.nextElementSibling;
+    if (next && next.classList.contains('field-error-msg')) next.classList.remove('visible');
+});
+document.addEventListener('change', function(e) {
+    e.target.classList.remove('field-error');
+    var next = e.target.nextElementSibling;
+    if (next && next.classList.contains('field-error-msg')) next.classList.remove('visible');
+});
+
+function validateForm(event) {
+    var ok = true;
+    var firstError = null;
+
+    // ── Основная информация ──
+    var titleInput = document.getElementById('title');
+    var titleErr = document.getElementById('err-main-title');
+    var titleEmpty = !titleInput || !titleInput.value.trim();
+    setFieldError(titleInput, titleErr, titleEmpty);
+    if (titleEmpty && !firstError) firstError = titleInput;
+    if (titleEmpty) ok = false;
+
+    // ── Билеты ──
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var blocks = document.querySelectorAll('.ticket-block');
+    blocks.forEach(function(block, idx) {
+        var n = idx + 1;
+
+        // Title
+        var tTitle = block.querySelector('[name="ticket_' + n + '_title"]');
+        var tTitleErr = document.getElementById('err-title-' + n);
+        var tTitleEmpty = !tTitle || !tTitle.value.trim();
+        setFieldError(tTitle, tTitleErr, tTitleEmpty);
+        if (tTitleEmpty) { ok = false; if (!firstError) firstError = tTitle; }
+
+        // Дата окончания
+        var tEnd = block.querySelector('[name="ticket_' + n + '_end_date"]');
+        var tEndErr = document.getElementById('err-end-' + n);
+        var tEndEmpty = !tEnd || !tEnd.value;
+        var tEndPast = false;
+        if (!tEndEmpty) {
+            var endDate = new Date(tEnd.value); endDate.setHours(0, 0, 0, 0);
+            tEndPast = endDate < today;
+        }
+        setFieldError(tEnd, tEndErr, tEndEmpty || tEndPast);
+        if (tEndEmpty) { if (tEndErr) tEndErr.textContent = 'Укажите дату окончания'; ok = false; if (!firstError) firstError = tEnd; }
+        else if (tEndPast) { if (tEndErr) tEndErr.textContent = 'Дата окончания не может быть в прошлом'; ok = false; if (!firstError) firstError = tEnd; }
+        else { if (tEndErr) tEndErr.textContent = 'Укажите дату окончания'; }
+
+        // Дата начала (только в режиме «по дате»)
+        var mode = (block.querySelector('[name="ticket_' + n + '_activate_mode"]:checked') || {}).value || 'scheduled';
+        if (mode === 'scheduled') {
+            var tStart = block.querySelector('[name="ticket_' + n + '_start_date"]');
+            var tStartErr = document.getElementById('err-start-' + n);
+            var tStartEmpty = !tStart || !tStart.value;
+            setFieldError(tStart, tStartErr, tStartEmpty);
+            if (tStartEmpty) { ok = false; if (!firstError) firstError = tStart; }
+        }
+
+        // Кому выдать
+        var allCb = document.getElementById('all-' + n);
+        var allChecked = allCb && allCb.checked;
+        if (!allChecked) {
+            var studentIds = (document.getElementById('student-ids-' + n) || {}).value || '';
+            var noStudents = !studentIds.trim();
+            var studErr = document.getElementById('err-students-' + n);
+            // Отображаем ошибку через студенческий selector
+            var selector = block.querySelector('.students-selector');
+            if (noStudents) {
+                ok = false;
+                if (selector) selector.style.outline = '1.5px solid #DC2626';
+                if (studErr) studErr.classList.add('visible');
+                if (!firstError) firstError = selector || studErr;
+            } else {
+                if (selector) selector.style.outline = '';
+                if (studErr) studErr.classList.remove('visible');
+            }
+        }
+    });
+
+    if (!ok) {
+        event.preventDefault();
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (typeof firstError.focus === 'function') firstError.focus();
+        }
+        return false;
+    }
+    // Prevent double-submit
+    var saveBtn = document.querySelector('.btn-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохраняем…'; }
+    return true;
+}
+</script>
+{% endblock %}

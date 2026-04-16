@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Портфолио">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="manifest" href="/static/manifest.json">
+    <title>{% block title %}Портфолио{% endblock %}</title>
+    <!-- Preload critical font subsets (cyrillic + latin weight 500) -->
+    <link rel="preload" as="font" type="font/woff2" href="/static/fonts/montserrat_01.woff2" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="/static/fonts/montserrat_04.woff2" crossorigin>
+    <!-- Montserrat: self-hosted, non-blocking -->
+    <link rel="preload" as="style" href="/static/fonts/montserrat.css"
+          onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="/static/fonts/montserrat.css" rel="stylesheet"></noscript>
+    <!-- Base styles: versioned for cache-busting -->
+    <link rel="stylesheet" href="/static/css/base.css?v=1">
+    {% block extra_styles %}{% endblock %}
+</head>
+<body>
+    {% if user is defined and user %}
+    {% set _unread = unread_count|default(0) %}
+    <a href="/cabinet/notifications" class="notif-bell" title="Уведомления{% if _unread %} ({{ _unread }} непрочитанных){% endif %}">
+        🔔
+        {% if _unread > 0 %}
+        <span class="notif-bell-badge">{{ _unread }}</span>
+        {% endif %}
+    </a>
+    {% endif %}
+
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

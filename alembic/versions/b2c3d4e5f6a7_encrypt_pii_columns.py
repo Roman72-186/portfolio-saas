@@ -1,0 +1,75 @@
+"""encrypt PII columns (phone, parent_phone, tg_username)
+
+Widen columns to TEXT to accommodate Fernet ciphertext,
+then encrypt existing plaintext values in-place.
+
+Revision ID: b2c3d4e5f6a7
+Revises: a1b2c3d4e5f6
+Create Date: 2026-04-16 21:00:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+revision: str = 'b2c3d4e5f6a7'
+down_revision: Union[str, None] = 'a1b2c3d4e5f6'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    # Widen columns to TEXT to fit Fernet tokens (~120+ chars)
+    op.alter_column('users', 'phone', type_=sa.Text(), existing_nullable=True)
+    op.alter_column('users', 'parent_phone', type_=sa.Text(), existing_nullable=True)
+    op.alter_column('users', 'tg_username', type_=sa.Text(), existing_nullable=True)
+
+    # Encrypt existing plaintext values
+    from app.crypto import _get_fernet
+    f = _get_fernet()
+
+    conn = op.get_bind()
+    rows = conn.execute(sa.text("SELECT id, phone, parent_phone, tg_username FROM users")).fetchall()
+    for row in rows:
+        updates = {}
+        if row.phone and not row.phone.startswith("gAAAAA"):
+            updates["phone"] = f.encrypt(row.phone.encode()).decode()
+        if row.parent_phone and not row.parent_phone.startswith("gAAAAA"):
+            updates["parent_phone"] = f.encrypt(row.parent_phone.encode()).decode()
+        if row.tg_username and not row.tg_username.startswith("gAAAAA"):
+            updates["tg_username"] = f.encrypt(row.tg_username.encode()).decode()
+        if updates:
+            set_clause = ", ".join(f"{k} = :v_{k}" for k in updates)
+            params = {f"v_{k}": v for k, v in updates.items()}
+            params["uid"] = row.id
+            conn.execute(sa.text(f"UPDATE users SET {set_clause} WHERE id = :uid"), params)
+
+
+def downgrade() -> None:
+    # Decrypt values back to plaintext
+    from app.crypto import _get_fernet
+    from cryptography.fernet import InvalidToken
+    f = _get_fernet()
+
+    conn = op.get_bind()
+    rows = conn.execute(sa.text("SELECT id, phone, parent_phone, tg_username FROM users")).fetchall()
+    for row in rows:
+        updates = {}
+        for col in ("phone", "parent_phone", "tg_username"):
+            val = getattr(row, col)
+            if val:
+                try:
+                    updates[col] = f.decrypt(val.encode()).decode()
+                except (InvalidToken, Exception):
+                    pass
+        if updates:
+            set_clause = ", ".join(f"{k} = :v_{k}" for k in updates)
+            params = {f"v_{k}": v for k, v in updates.items()}
+            params["uid"] = row.id
+            conn.execute(sa.text(f"UPDATE users SET {set_clause} WHERE id = :uid"), params)
+
+    op.alter_column('users', 'phone', type_=sa.String(30), existing_nullable=True)
+    op.alter_column('users', 'parent_phone', type_=sa.String(30), existing_nullable=True)
+    op.alter_column('users', 'tg_username', type_=sa.String(100), existing_nullable=True)

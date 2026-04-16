@@ -1,0 +1,136 @@
+"""Deploy portfolio-saas to remote server via SFTP."""
+import os
+from pathlib import Path
+
+try:
+    import paramiko
+except ImportError as exc:
+    raise SystemExit("Paramiko is required. Install it with: pip install paramiko") from exc
+
+LOCAL_DIR = Path(__file__).resolve().parent.parent
+REMOTE_DIR = os.getenv("PORTFOLIO_REMOTE_DIR", "/home/portfolio-saas")
+
+SKIP = {".git", "__pycache__", ".env", "tests", "venv", ".venv", "node_modules"}
+
+
+def require_env(name: str, default: str | None = None) -> str:
+    value = os.getenv(name, default)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def connect_client() -> "paramiko.SSHClient":
+    host = require_env("PORTFOLIO_SSH_HOST")
+    user = require_env("PORTFOLIO_SSH_USER", "root")
+    port = int(os.getenv("PORTFOLIO_SSH_PORT", "22"))
+    password = os.getenv("PORTFOLIO_SSH_PASSWORD")
+    key_path = os.getenv("PORTFOLIO_SSH_KEY_PATH")
+
+    if not password and not key_path:
+        raise RuntimeError(
+            "Provide PORTFOLIO_SSH_PASSWORD or PORTFOLIO_SSH_KEY_PATH for deployment."
+        )
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    connect_kwargs = {
+        "hostname": host,
+        "port": port,
+        "username": user,
+        "timeout": 15,
+    }
+    if key_path:
+        connect_kwargs["key_filename"] = os.path.expanduser(key_path)
+        connect_kwargs["look_for_keys"] = False
+    if password:
+        connect_kwargs["password"] = password
+        connect_kwargs["look_for_keys"] = False
+        connect_kwargs["allow_agent"] = False
+
+    client.connect(**connect_kwargs)
+    return client
+
+
+def read_app_env() -> str:
+    env_path = Path(os.getenv("PORTFOLIO_APP_ENV_FILE", LOCAL_DIR / ".env"))
+    if not env_path.exists():
+        raise RuntimeError(
+            f"App env file not found: {env_path}. "
+            "Create portfolio-saas/.env or set PORTFOLIO_APP_ENV_FILE."
+        )
+    return env_path.read_text(encoding="utf-8")
+
+
+def upload_dir(sftp, local_path, remote_path):
+    """Recursively upload directory."""
+    for item in os.listdir(local_path):
+        if item in SKIP:
+            continue
+        local_item = os.path.join(local_path, item)
+        remote_item = f"{remote_path}/{item}"
+
+        if os.path.isdir(local_item):
+            try:
+                sftp.stat(remote_item)
+            except FileNotFoundError:
+                sftp.mkdir(remote_item)
+                print(f"  mkdir {remote_item}")
+            upload_dir(sftp, local_item, remote_item)
+        else:
+            print(f"  upload {remote_item}")
+            sftp.put(local_item, remote_item)
+
+
+def main():
+    host = require_env("PORTFOLIO_SSH_HOST")
+    print(f"Connecting to {host}...")
+    client = connect_client()
+
+    sftp = client.open_sftp()
+
+    # Create remote dir
+    try:
+        sftp.stat(REMOTE_DIR)
+    except FileNotFoundError:
+        sftp.mkdir(REMOTE_DIR)
+
+    print(f"Uploading {LOCAL_DIR} -> {REMOTE_DIR}")
+    upload_dir(sftp, str(LOCAL_DIR), REMOTE_DIR)
+
+    print("\n  Uploading app .env to server...")
+    env_content = read_app_env()
+    with sftp.open(f"{REMOTE_DIR}/.env", "w") as f:
+        f.write(env_content)
+
+    sftp.close()
+    print("\nDone! Files uploaded.")
+
+    # Build and start (пересобирает только app, db и redis не трогает)
+    print("\nBuilding and starting containers...")
+    stdin, stdout, stderr = client.exec_command(
+        f"cd {REMOTE_DIR} && docker compose up -d --build 2>&1",
+        timeout=300,
+    )
+    output = stdout.read().decode()
+    errors = stderr.read().decode()
+    print(output)
+    if errors:
+        print("STDERR:", errors)
+
+    # Сброс Redis-кэша после деплоя (сессии не трогаем — только app-кэш)
+    print("\nFlushing Redis cache...")
+    stdin, stdout, stderr = client.exec_command(
+        f"cd {REMOTE_DIR} && docker compose exec -T redis redis-cli FLUSHDB 2>&1",
+        timeout=30,
+    )
+    redis_out = stdout.read().decode().strip()
+    redis_err = stderr.read().decode().strip()
+    print(f"  Redis FLUSHDB: {redis_out or redis_err or '(no output)'}")
+
+    client.close()
+
+
+if __name__ == "__main__":
+    main()

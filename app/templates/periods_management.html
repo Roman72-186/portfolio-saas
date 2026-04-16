@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Управление периодами{% endblock %}
+{% block extra_styles %}
+<style>
+.periods-wrap { max-width: 760px; margin: 0 auto; }
+.feature-section { margin-bottom: 32px; }
+.feature-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.feature-label {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--dim);
+}
+.period-card {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px;
+}
+.period-card.active { border-color: rgba(5,150,105,0.4); }
+.period-card.inactive { opacity: 0.6; }
+.period-dates { font-size: 14px; font-weight: 700; color: var(--text); }
+.period-title { font-size: 12px; color: var(--dim); margin-top: 2px; }
+.period-status {
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    flex-shrink: 0;
+}
+.status-active { background: rgba(5,150,105,0.1); color: #059669; }
+.status-inactive { background: var(--surface); color: var(--dim); }
+.status-upcoming { background: rgba(37,99,235,0.08); color: var(--accent); }
+.status-expired { background: rgba(239,68,68,0.07); color: #EF4444; }
+.period-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.btn-sm {
+    font-size: 12px; font-weight: 700; padding: 5px 12px;
+    border-radius: 8px; border: 1.5px solid var(--border); background: var(--card);
+    cursor: pointer; font-family: 'Montserrat', sans-serif; transition: all 0.15s;
+    color: var(--text);
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.danger:hover { border-color: #EF4444; color: #EF4444; }
+.create-form {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-top: 8px;
+    display: none;
+}
+.create-form.open { display: block; }
+.btn-add {
+    font-size: 13px; font-weight: 700; padding: 7px 16px;
+    border-radius: 10px; border: 1.5px dashed var(--border);
+    background: none; cursor: pointer; color: var(--dim);
+    font-family: 'Montserrat', sans-serif; transition: all 0.15s;
+}
+.btn-add:hover { border-color: var(--accent); color: var(--accent); }
+.empty-periods {
+    padding: 16px; text-align: center;
+    color: var(--dim); font-size: 13px;
+    border: 1px dashed var(--border); border-radius: 10px;
+    margin-bottom: 8px;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="periods-wrap">
+
+    <div style="margin-bottom:28px">
+        <a href="/cabinet" style="font-size:13px;color:var(--dim);text-decoration:none">← Кабинет</a>
+        <h1 style="font-size:26px;font-weight:900;letter-spacing:-0.5px;margin-top:8px" class="text-gradient">
+            Управление периодами
+        </h1>
+        <p style="color:var(--muted);font-size:14px;margin-top:6px">
+            Включайте и выключайте доступ студентов к разделам на определённые даты.
+        </p>
+    </div>
+
+    {% for feature in features %}
+    {% set label = feature_labels[feature] %}
+    {% set feature_periods = periods | selectattr('feature', 'equalto', feature) | list %}
+
+    <div class="feature-section">
+        <div class="feature-header">
+            <span class="feature-label">{{ label }}</span>
+            <button class="btn-add" onclick="toggleForm('{{ feature }}')">+ Добавить период</button>
+        </div>
+
+        <!-- Create form (hidden by default) -->
+        <div class="create-form" id="form-{{ feature }}">
+            <form method="post" action="/cabinet/periods/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                <input type="hidden" name="feature" value="{{ feature }}">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                    <div>
+                        <label class="form-label" for="start-{{ feature }}">Дата начала *</label>
+                        <input id="start-{{ feature }}" class="form-input" type="date" name="start_date" required
+                               value="{{ today.isoformat() }}">
+                    </div>
+                    <div>
+                        <label class="form-label" for="end-{{ feature }}">Дата окончания *</label>
+                        <input id="end-{{ feature }}" class="form-input" type="date" name="end_date" required
+                               value="{{ today.isoformat() }}">
+                    </div>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label class="form-label" for="title-{{ feature }}">Описание (необязательно)</label>
+                    <input id="title-{{ feature }}" class="form-input" type="text" name="title"
+                           placeholder="Например: Январский поток">
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button type="submit" class="btn-primary" style="padding:8px 20px;font-size:13px">
+                        Создать период
+                    </button>
+                    <button type="button" class="btn-sm"
+                            onclick="toggleForm('{{ feature }}')">Отмена</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Periods list -->
+        {% if feature_periods %}
+        {% for p in feature_periods %}
+        {% if p.is_active and p.start_date <= today and p.end_date >= today %}
+            {% set status = "active" %}
+            {% set status_label = "Активен сейчас" %}
+        {% elif p.is_active and p.start_date > today %}
+            {% set status = "upcoming" %}
+            {% set status_label = "Запланирован" %}
+        {% elif p.is_active and p.end_date < today %}
+            {% set status = "expired" %}
+            {% set status_label = "Истёк" %}
+        {% else %}
+            {% set status = "inactive" %}
+            {% set status_label = "Отключён" %}
+        {% endif %}
+
+        <div class="period-card {% if status == 'active' %}active{% elif not p.is_active %}inactive{% endif %}">
+            <div>
+                <div class="period-dates">
+                    {{ p.start_date.strftime('%d.%m.%Y') }} — {{ p.end_date.strftime('%d.%m.%Y') }}
+                </div>
+                {% if p.title %}
+                <div class="period-title">{{ p.title }}</div>
+                {% endif %}
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+                <span class="period-status status-{{ status }}">{{ status_label }}</span>
+                <div class="period-actions">
+                    {% if p.is_active %}
+                    <form method="post" action="/cabinet/periods/{{ p.id }}/deactivate" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                        <button type="submit" class="btn-sm danger">Отключить</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="/cabinet/periods/{{ p.id }}/activate" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                        <button type="submit" class="btn-sm">Включить</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-periods">Периодов пока нет — создайте первый</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div style="height:80px"></div>
+</div>
+
+<script>
+function toggleForm(feature) {
+    var el = document.getElementById('form-' + feature);
+    el.classList.toggle('open');
+}
+</script>
+{% endblock %}

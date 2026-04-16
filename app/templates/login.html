@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block extra_styles %}
+<style>
+body { background: linear-gradient(160deg, #E8ECF6 0%, #DDE3F2 100%); }
+
+.login-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px 60px;
+    gap: 20px;
+}
+
+/* ── Calculator card ── */
+.calc-card {
+    width: 100%;
+    max-width: 540px;
+    background: #fff;
+    border-radius: 24px;
+    box-shadow: 0 4px 32px rgba(30,45,107,0.11);
+    overflow: hidden;
+}
+
+.calc-header {
+    background: linear-gradient(135deg, #1E2D6B 0%, #3B4FC8 100%);
+    padding: 28px 32px 24px;
+    color: #fff;
+}
+.calc-header-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 6px;
+}
+.calc-header h2 {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+}
+.calc-header p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 6px;
+}
+
+.calc-body {
+    padding: 28px 32px;
+}
+
+.calc-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.calc-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.calc-select {
+    width: 100%;
+    padding: 12px 16px;
+    background: #F4F6FB;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.calc-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+
+/* Months row — pill buttons */
+.months-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.month-pill {
+    flex: 1;
+    min-width: 44px;
+    padding: 11px 8px;
+    background: #F4F6FB;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+}
+.month-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+.month-pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.28);
+}
+
+/* Result block */
+.calc-result {
+    margin-top: 20px;
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+    border: 1.5px solid rgba(37,99,235,0.18);
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.calc-result-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+}
+.calc-result-detail {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 3px;
+}
+.calc-result-price {
+    font-size: 30px;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -1px;
+    white-space: nowrap;
+}
+.calc-result-price span {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-mid);
+}
+
+.calc-note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--dim);
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* ── Login card ── */
+.login-card {
+    width: 100%;
+    max-width: 540px;
+    background: #fff;
+    border-radius: 24px;
+    box-shadow: 0 4px 32px rgba(30,45,107,0.11);
+    padding: 28px 32px;
+}
+
+.login-card-inner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.login-avatar {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 16px;
+    background: var(--accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-text h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.login-text p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.vk-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    background: #0077FF;
+    color: #fff;
+    padding: 16px 28px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px rgba(0,119,255,0.28);
+}
+.vk-btn:hover {
+    background: #0063DB;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,119,255,0.38);
+    opacity: 1;
+}
+
+.tg-support-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 13px 28px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--muted);
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+.tg-support-btn:hover {
+    color: #0088cc;
+    border-color: #0088cc;
+    background: #f0f9ff;
+    opacity: 1;
+}
+
+@media (max-width: 480px) {
+    .calc-row { grid-template-columns: 1fr; }
+    .calc-header { padding: 22px 22px 20px; }
+    .calc-body { padding: 22px; }
+    .login-card { padding: 22px; }
+    .login-card-inner { flex-direction: column; text-align: center; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="login-wrap">
+
+    <!-- ═══ CALCULATOR ═══ -->
+    <div class="calc-card">
+        <div class="calc-header">
+            <div class="calc-header-label">Калькулятор</div>
+            <h2>Рассчитайте стоимость обучения</h2>
+            <p>Выберите тариф и срок — узнайте итоговую цену</p>
+        </div>
+
+        <div class="calc-body">
+            <div class="calc-row">
+                <div class="calc-field">
+                    <label>Тариф</label>
+                    <select class="calc-select" id="calcTariff" onchange="calcUpdate()">
+                        <option value="0">Выберите тариф</option>
+                        <option value="4500">Я с вами</option>
+                        <option value="7500">Уверенный</option>
+                        <option value="12000">Максимум</option>
+                    </select>
+                </div>
+                <div class="calc-field">
+                    <label>Направление</label>
+                    <select class="calc-select" id="calcDir" onchange="calcUpdate()">
+                        <option value="1">Фотография</option>
+                        <option value="1.1">Видеосъёмка</option>
+                        <option value="1.2">Ретушь</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="calc-field">
+                <label>Количество месяцев</label>
+                <div class="months-pills" id="monthsPills">
+                    <div class="month-pill" data-val="1" onclick="selectMonth(this)">1</div>
+                    <div class="month-pill" data-val="2" onclick="selectMonth(this)">2</div>
+                    <div class="month-pill active" data-val="3" onclick="selectMonth(this)">3</div>
+                    <div class="month-pill" data-val="4" onclick="selectMonth(this)">4</div>
+                    <div class="month-pill" data-val="6" onclick="selectMonth(this)">6</div>
+                    <div class="month-pill" data-val="12" onclick="selectMonth(this)">12</div>
+                </div>
+            </div>
+
+            <div class="calc-result">
+                <div>
+                    <div class="calc-result-label">Итоговая стоимость</div>
+                    <div class="calc-result-detail" id="calcDetail">Выберите тариф</div>
+                </div>
+                <div class="calc-result-price" id="calcPrice">— <span>₽</span></div>
+            </div>
+
+            <div class="calc-note">
+                Скидка 10% при оплате от 3 месяцев · 15% от 6 месяцев
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ LOGIN ═══ -->
+    <div class="login-card">
+        <div class="login-card-inner">
+            <div class="login-avatar">
+                <img src="/static/img/logo.svg" alt="Логотип" width="40" height="40">
+            </div>
+            <div class="login-text">
+                <h3>Войдите в личный кабинет</h3>
+                <p>Доступ открыт только участникам закрытого сообщества ВКонтакте</p>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error" style="margin-top:16px">{{ error }}</div>
+        {% endif %}
+
+        {% if vk_login_enabled %}
+        <a href="/auth/vk/login" class="vk-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.073 2H8.938C3.332 2 2 3.333 2 8.927v6.136C2 20.667 3.332 22 8.927 22h6.136C20.667 22 22 20.668 22 15.073V8.938C22 3.332 20.668 2 15.073 2zm3.073 14.27h-1.459c-.552 0-.72-.44-1.71-1.44-.863-.832-1.242-.945-1.455-.945-.297 0-.383.085-.383.497v1.315c0 .354-.113.568-1.049.568-1.548 0-3.267-.938-4.474-2.688-1.818-2.559-2.318-4.478-2.318-4.87 0-.213.085-.411.497-.411h1.459c.372 0 .513.166.656.554.724 2.092 1.934 3.927 2.432 3.927.185 0 .27-.085.27-.554V8.803c-.057-1-.582-1.085-.582-1.442 0-.178.149-.354.39-.354h2.295c.313 0 .425.17.425.524v2.845c0 .313.141.425.228.425.185 0 .34-.112.682-.453 1.056-1.182 1.811-3.007 1.811-3.007.1-.213.27-.411.642-.411h1.459c.44 0 .535.227.44.524-.178.823-1.903 3.25-1.903 3.25-.149.241-.206.354 0 .63.149.198.639.609.97.98.609.682 1.077 1.257 1.2 1.655.128.397-.07.602-.512.602z"/>
+            </svg>
+            Войти через ВКонтакте
+        </a>
+        {% else %}
+        <div class="alert alert-error" style="margin-top:16px">Вход временно недоступен. Обратитесь к администратору.</div>
+        {% endif %}
+
+        <a href="https://t.me/roman_chatbots" target="_blank" rel="noopener noreferrer" class="tg-support-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.7 8.01c-.12.55-.46.68-.93.43l-2.57-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.62 4.74-4.28c.2-.18-.05-.28-.32-.1L7.95 14.4 5.41 13.6c-.55-.18-.56-.55.12-.81l8.97-3.46c.45-.17.85.11.14.47z"/>
+            </svg>
+            Написать в поддержку
+        </a>
+
+        <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <a href="/auth/staff/login"
+               style="font-size:13px;color:var(--dim);text-decoration:none;transition:color 0.15s"
+               onmouseover="this.style.color='var(--accent)'"
+               onmouseout="this.style.color='var(--dim)'">
+                Войти как сотрудник →
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let selectedMonths = 3;
+
+const DISCOUNTS = { 1: 0, 2: 0, 3: 0.10, 4: 0.10, 6: 0.15, 12: 0.15 };
+
+function selectMonth(el) {
+    document.querySelectorAll('.month-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    selectedMonths = parseInt(el.dataset.val);
+    calcUpdate();
+}
+
+function calcUpdate() {
+    const base = parseInt(document.getElementById('calcTariff').value) || 0;
+    const dir  = parseFloat(document.getElementById('calcDir').value) || 1;
+    const disc = DISCOUNTS[selectedMonths] || 0;
+    const priceEl  = document.getElementById('calcPrice');
+    const detailEl = document.getElementById('calcDetail');
+
+    if (!base) {
+        priceEl.innerHTML  = '— <span>₽</span>';
+        detailEl.textContent = 'Выберите тариф';
+        return;
+    }
+
+    const monthly = Math.round(base * dir);
+    const total   = Math.round(monthly * selectedMonths * (1 - disc));
+    const fmt     = n => n.toLocaleString('ru-RU');
+
+    priceEl.innerHTML = fmt(total) + ' <span>₽</span>';
+
+    if (disc > 0) {
+        const saved = Math.round(monthly * selectedMonths * disc);
+        detailEl.textContent = fmt(monthly) + ' ₽/мес · экономия ' + fmt(saved) + ' ₽';
+    } else {
+        detailEl.textContent = fmt(monthly) + ' ₽ × ' + selectedMonths + ' мес';
+    }
+}
+</script>
+{% endblock %}

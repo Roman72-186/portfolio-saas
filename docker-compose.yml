@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    expose:
+      - "8000"
+    env_file: .env
+    volumes:
+      - ./app:/app/app
+    labels:
+      - traefik.enable=true
+      # Main app on apparchi.ru (canonical domain)
+      - traefik.http.routers.portfolio-apparchi.rule=Host(`apparchi.ru`) || Host(`www.apparchi.ru`)
+      - traefik.http.routers.portfolio-apparchi.tls=true
+      - traefik.http.routers.portfolio-apparchi.entrypoints=web,websecure
+      - traefik.http.routers.portfolio-apparchi.tls.certresolver=mytlschallenge
+      - traefik.http.routers.portfolio-apparchi.service=portfolio
+      - traefik.http.routers.portfolio-apparchi.middlewares=portfolio-timeout
+      - traefik.http.services.portfolio.loadbalancer.server.port=8000
+      - traefik.http.middlewares.portfolio-timeout.buffering.maxRequestBodyBytes=20971520
+      - traefik.http.middlewares.portfolio-timeout.buffering.retryExpression=IsNetworkError()
+    networks:
+      - n8n_default
+      - default
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --timeout-keep-alive 30"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    networks:
+      - default
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    env_file: .env
+    volumes:
+      - portfolio_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - default
+    restart: unless-stopped
+
+volumes:
+  portfolio_postgres:
+
+networks:
+  n8n_default:
+    external: true

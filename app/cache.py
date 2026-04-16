@@ -1,0 +1,123 @@
+"""Redis cache helpers for session data."""
+import json
+import logging
+from datetime import datetime
+from typing import Any
+
+import redis as _redis_lib
+
+from app.config import settings
+
+log = logging.getLogger(__name__)
+
+SESSION_TTL = 300  # 5 minutes
+
+
+def _get_client() -> _redis_lib.Redis | None:
+    """Return a Redis client, or None if Redis is unavailable."""
+    try:
+        client = _redis_lib.Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1)
+        client.ping()
+        return client
+    except Exception:
+        return None
+
+
+# Module-level client — created once, reused across requests.
+# Falls back to None if Redis is not available (app works without cache).
+try:
+    _client: _redis_lib.Redis | None = _redis_lib.Redis.from_url(
+        settings.redis_url,
+        socket_connect_timeout=1,
+        socket_timeout=1,
+        decode_responses=True,
+    )
+    _client.ping()
+except Exception:
+    log.warning("Redis unavailable — session caching disabled")
+    _client = None
+
+
+def _serialize(user: dict) -> str:
+    data = {**user}
+    data["permissions"] = list(data.get("permissions") or [])
+    for key in ("last_vk_check_at", "enrolled_at", "created_at"):
+        v = data.get(key)
+        if isinstance(v, datetime):
+            data[key] = v.isoformat()
+    return json.dumps(data)
+
+
+def _deserialize(raw: str) -> dict:
+    data = json.loads(raw)
+    data["permissions"] = set(data.get("permissions") or [])
+    for key in ("last_vk_check_at", "enrolled_at", "created_at"):
+        v = data.get(key)
+        if isinstance(v, str):
+            try:
+                data[key] = datetime.fromisoformat(v)
+            except ValueError:
+                data[key] = None
+    return data
+
+
+def get_cached_session(session_id: str) -> dict | None:
+    if not _client:
+        return None
+    try:
+        raw = _client.get(f"session:{session_id}")
+        return _deserialize(raw) if raw else None
+    except Exception:
+        return None
+
+
+def set_cached_session(session_id: str, user: dict) -> None:
+    if not _client:
+        return
+    try:
+        _client.setex(f"session:{session_id}", SESSION_TTL, _serialize(user))
+    except Exception:
+        pass
+
+
+def invalidate_session(session_id: str) -> None:
+    if not _client:
+        return
+    try:
+        _client.delete(f"session:{session_id}")
+    except Exception:
+        pass
+
+
+# ── Unread notification count cache (TTL 60s) ─────────────────────────────────
+
+UNREAD_TTL = 60  # seconds
+
+
+def get_cached_unread(user_id: int) -> int | None:
+    if not _client:
+        return None
+    try:
+        raw = _client.get(f"unread:{user_id}")
+        return int(raw) if raw is not None else None
+    except Exception:
+        return None
+
+
+def set_cached_unread(user_id: int, count: int) -> None:
+    if not _client:
+        return
+    try:
+        _client.setex(f"unread:{user_id}", UNREAD_TTL, count)
+    except Exception:
+        pass
+
+
+def invalidate_unread(user_id: int) -> None:
+    """Call after marking notifications read or creating new ones."""
+    if not _client:
+        return
+    try:
+        _client.delete(f"unread:{user_id}")
+    except Exception:
+        pass
