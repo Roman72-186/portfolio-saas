@@ -248,6 +248,15 @@ async def vk_callback(
         return _render_login(request, "ВК не вернул данные авторизации.")
 
     is_member = await check_group_membership(access_token, vk_user_id, settings.vk_group_id)
+
+    # VK ID tokens may lack groups scope for closed communities — fall back to community token.
+    if not is_member and settings.vk_community_token:
+        is_member = await check_group_membership(
+            settings.vk_community_token, vk_user_id, settings.vk_group_id
+        )
+        if is_member:
+            logger.info("vk_callback: user %s confirmed via community token fallback", vk_user_id)
+
     if not is_member:
         existing_user = db.query(User).filter(User.vk_id == vk_user_id).first()
         if existing_user:

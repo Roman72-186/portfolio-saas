@@ -116,12 +116,16 @@ async def get_user_info(access_token: str, user_id: int) -> dict:
 
 async def check_group_membership(access_token: str, user_id: int, group_id: int) -> bool:
     """Check if user is a member of the specified VK group."""
-    data = await _vk_api_get("groups.isMember", {
-        "group_id": group_id,
-        "user_id": user_id,
-        "access_token": access_token,
-        "v": "5.199",
-    })
+    try:
+        data = await _vk_api_get("groups.isMember", {
+            "group_id": group_id,
+            "user_id": user_id,
+            "access_token": access_token,
+            "v": "5.199",
+        })
+    except Exception as exc:
+        logger.warning("VK groups.isMember request failed: %s", exc)
+        return False
 
     if "error" in data:
         logger.warning("VK groups.isMember error: %s", data["error"])
